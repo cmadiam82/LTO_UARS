@@ -27,3 +27,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ user: updated.rows[0] });
   });
 }
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireSystemAdmin(); if (auth.error) return auth.error;
+  const { id } = await params;
+  if (id === auth.user!.id) return NextResponse.json({ error: "You cannot delete your own administrator account." }, { status: 400 });
+  try {
+    return await transaction(async (client) => {
+      const existing = await client.query(`SELECT username,full_name,role FROM uars.users WHERE id=$1 FOR UPDATE`, [id]);
+      const target = existing.rows[0];
+      if (!target) return NextResponse.json({ error: "User not found." }, { status: 404 });
+      await client.query(`DELETE FROM uars.users WHERE id=$1`, [id]);
+      await client.query(`INSERT INTO uars.admin_audit_events (actor_id,actor_name,action,entity_type,entity_id,details) VALUES ($1,$2,'USER_DELETED','USER',$3,$4)`, [auth.user!.id,auth.user!.fullName,id,JSON.stringify({username:target.username,full_name:target.full_name,role:target.role})]);
+      return NextResponse.json({ ok:true });
+    });
+  } catch (error) {
+    if ((error as {code?:string}).code === "23503") return NextResponse.json({ error: "This user has permanent workflow or audit records and cannot be deleted. Suspend the account instead." }, { status: 409 });
+    throw error;
+  }
+}
