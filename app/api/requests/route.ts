@@ -41,7 +41,9 @@ export async function POST(request: Request) {
   if (!body || required.some((key) => !body[key]?.trim())) return NextResponse.json({ error: "Complete every required field." }, { status: 400 });
   const created = await transaction(async (client) => {
     const sequence = await client.query<{ nextval: string }>(`SELECT nextval('uars.request_number_seq')::text`);
-    const ref = `UAR-${new Date().getFullYear()}-${sequence.rows[0].nextval.padStart(5, "0")}`;
+    const configuredPrefix = await client.query<{value:string}>(`SELECT value FROM uars.system_settings WHERE key='request_prefix'`);
+    const prefix = (configuredPrefix.rows[0]?.value || "UARS").replace(/[^A-Za-z0-9-]/g, "").slice(0, 12) || "UARS";
+    const ref = `${prefix}-${new Date().getFullYear()}-${sequence.rows[0].nextval.padStart(5, "0")}`;
     const result = await client.query<RequestRow>(
       `INSERT INTO uars.access_requests (reference_no, requester_id, applicant_name, employee_id, email, contact_no,
        office, position, system_name, access_level, account_type, requested_start_date, justification, status, assigned_role)

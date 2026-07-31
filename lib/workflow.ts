@@ -15,4 +15,5 @@ export const roleLabels: Record<Role, string> = {
   REGIONAL_DIRECTOR: "Regional Director",
   MID_CHIEF: "MID Chief",
   TECHNICAL_TEAM: "Technical Team",
+  SYSTEM_ADMIN: "System Administrator",
 };

@@ -1,11 +1,14 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import type { AccessRequest, AuthUser, WorkflowEvent } from "../lib/types";
+import { FormEvent, useCallback, useEffect, useState } from "react";
+import { ROLES, type AccessRequest, type AuthUser, type Role, type WorkflowEvent } from "../lib/types";
 import { roleLabels, transitions } from "../lib/workflow";
 
 type Notice = { id: string; request_id: string; title: string; message: string; is_read: boolean; created_at: string };
 type Detail = AccessRequest & { events: WorkflowEvent[] };
+type AdminUser = { id:string;username:string;full_name:string;employee_id:string;email:string;office:string;role:Role;is_active:boolean;must_change_password:boolean;created_at:string };
+type Setting = { key:string;value:string;description:string;updated_at:string };
+type AdminAudit = { id:string;actor_name:string;action:string;entity_type:string;entity_id:string;created_at:string };
 
 const statusLabels: Record<string, string> = {
   PENDING_ENDORSEMENT: "Awaiting Head of Office",
@@ -28,7 +31,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [selected, setSelected] = useState<Detail | null>(null);
-  const [view, setView] = useState<"workspace" | "new">("workspace");
+  const [view, setView] = useState<"workspace" | "new" | "admin-users" | "admin-settings">("workspace");
   const [notices, setNotices] = useState<Notice[]>([]);
   const [showNotices, setShowNotices] = useState(false);
   const [toast, setToast] = useState("");
@@ -61,6 +64,8 @@ export default function Home() {
       setLoading(false);
     });
   }, []);
+  // Data is refreshed whenever the authenticated identity changes.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (user) { loadRequests(); loadNotices(); } }, [user, loadRequests, loadNotices]);
 
   function flash(message: string) { setToast(message); window.setTimeout(() => setToast(""), 4000); }
@@ -75,10 +80,11 @@ export default function Home() {
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
       {user.mustChangePassword && <ChangePassword onDone={() => setUser({ ...user, mustChangePassword: false })} />}
       <aside className="sidebar">
-        <div className="brand"><div className="brand-mark">U</div><div><strong>UARS</strong><span>User Access Request System · v0.2.2</span></div></div>
+        <div className="brand"><div className="brand-mark">U</div><div><strong>UARS</strong><span>User Access Request System · v0.3.0</span></div></div>
         <nav aria-label="Main navigation">
           <button className={`nav-item ${view === "workspace" ? "active" : ""}`} onClick={() => { setView("workspace"); setSelected(null); }}><span>▦</span> Workspace</button>
           {user.role === "DO" && <button className={`nav-item ${view === "new" ? "active" : ""}`} onClick={() => setView("new")}><span>＋</span> New application</button>}
+          {user.role === "SYSTEM_ADMIN" && <><button className={`nav-item ${view === "admin-users" ? "active" : ""}`} onClick={() => {setView("admin-users");setSelected(null);}}><span>♙</span> User management</button><button className={`nav-item ${view === "admin-settings" ? "active" : ""}`} onClick={() => {setView("admin-settings");setSelected(null);}}><span>⚙</span> System settings</button></>}
           <button className="nav-item" onClick={() => setShowNotices(true)}><span>◎</span> Notifications {unread > 0 && <em>{unread}</em>}</button>
           <button className="nav-item" onClick={() => { setView("workspace"); setSelected(null); }}><span>✓</span> Request history</button>
         </nav>
@@ -88,11 +94,11 @@ export default function Home() {
 
       <section className="workspace">
         <header className="topbar">
-          <div><h1>{view === "new" ? "New access application" : selected ? selected.referenceNo : "Approval workspace"}</h1><p>{view === "new" ? "Submit a user access request for endorsement" : `Signed in as ${roleLabels[user.role]}`}</p></div>
+          <div><h1>{view === "new" ? "New access application" : view === "admin-users" ? "User management" : view === "admin-settings" ? "System settings" : selected ? selected.referenceNo : "Approval workspace"}</h1><p>{view === "new" ? "Submit a user access request for endorsement" : `Signed in as ${roleLabels[user.role]}`}</p></div>
           <div className="top-actions"><span className="role-badge">{roleLabels[user.role]}</span><button className="icon-btn" onClick={() => setShowNotices(true)} aria-label="Notifications">♢{unread > 0 && <i />}</button></div>
         </header>
         <div className="content">
-          {view === "new" ? <ApplicationForm user={user} onCreated={async (request) => { await loadRequests(); setView("workspace"); await loadDetail(request.id); flash(`${request.referenceNo} submitted for endorsement.`); }} /> :
+          {view === "admin-users" ? <UserManagement currentUser={user} flash={flash}/> : view === "admin-settings" ? <SystemSettings flash={flash}/> : view === "new" ? <ApplicationForm user={user} onCreated={async (request) => { await loadRequests(); setView("workspace"); await loadDetail(request.id); flash(`${request.referenceNo} submitted for endorsement.`); }} /> :
             selected ? <RequestDetail request={selected} user={user} onBack={() => setSelected(null)} onAction={async () => { await loadRequests(); await loadDetail(selected.id); await loadNotices(); flash("Action completed and the next office was notified."); }} /> :
             <WorkspaceHome user={user} requests={requests} onSelect={loadDetail} onNew={() => setView("new")} />}
         </div>
@@ -100,6 +106,25 @@ export default function Home() {
       {showNotices && <Notifications notices={notices} onClose={async () => { setShowNotices(false); await fetch("/api/notifications", { method: "POST" }); await loadNotices(); }} onOpen={(id) => { setShowNotices(false); setView("workspace"); loadDetail(id); }} />}
     </main>
   );
+}
+
+function UserManagement({currentUser,flash}:{currentUser:AuthUser;flash:(message:string)=>void}){
+  const [users,setUsers]=useState<AdminUser[]>([]);const [error,setError]=useState("");const [secret,setSecret]=useState<{username:string;password:string}|null>(null);
+  const load=useCallback(async()=>{const r=await fetch("/api/admin/users");const x=await r.json();if(r.ok)setUsers(x.users);else setError(x.error);},[]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(()=>{load();},[load]);
+  async function create(e:FormEvent<HTMLFormElement>){e.preventDefault();setError("");const f=new FormData(e.currentTarget);const body=Object.fromEntries(f);const r=await fetch("/api/admin/users",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const x=await r.json();if(!r.ok)return setError(x.error);setSecret({username:x.user.username,password:x.temporaryPassword});e.currentTarget.reset();await load();flash("User account created.");}
+  async function update(id:string,body:object){setError("");const r=await fetch(`/api/admin/users/${id}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const x=await r.json();if(!r.ok)return setError(x.error);if(x.temporaryPassword){const u=users.find((item)=>item.id===id);setSecret({username:u?.username||"user",password:x.temporaryPassword});}await load();flash(x.temporaryPassword?"Temporary password generated.":"User access updated.");}
+  return <><section className="workspace-welcome"><div><p className="eyebrow">SYSTEM ADMINISTRATION</p><h2>Local UARS accounts</h2><p>Create accounts, assign roles, suspend access, and reset passwords.</p></div></section>{error&&<div className="form-error">{error}</div>}<form className="card admin-create" onSubmit={create}><div className="list-heading"><div><h3>Create user account</h3><p>A temporary password is generated and shown once.</p></div><button className="new-request">Create account</button></div><div className="form-grid"><Field name="username" label="Username"/><Field name="fullName" label="Full name"/><Field name="employeeId" label="Employee ID"/><Field name="email" label="Official email" type="email"/><Field name="office" label="Office / Division"/><label><span>System role</span><select name="role" required>{ROLES.map((r)=><option key={r} value={r}>{roleLabels[r]}</option>)}</select></label></div></form><section className="card request-list admin-list"><div className="list-heading"><div><h3>User directory</h3><p>Changes take effect immediately and are permanently logged.</p></div><span>{users.length} accounts</span></div><div className="table-wrap"><table><thead><tr><th>User</th><th>Office</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody>{users.map((u)=><tr key={u.id}><td><strong>{u.full_name}</strong><small>{u.username} · {u.employee_id}</small></td><td>{u.office}<small>{u.email}</small></td><td><select value={u.role} disabled={u.id===currentUser.id} onChange={(e)=>update(u.id,{role:e.target.value})}>{ROLES.map((r)=><option key={r} value={r}>{roleLabels[r]}</option>)}</select></td><td><span className={`status-pill ${u.is_active?"done":""}`}><i/>{u.is_active?u.must_change_password?"Password change due":"Active":"Suspended"}</span></td><td><div className="admin-actions"><button onClick={()=>update(u.id,{action:"RESET_PASSWORD"})}>Reset password</button><button disabled={u.id===currentUser.id} onClick={()=>update(u.id,{isActive:!u.is_active})}>{u.is_active?"Suspend":"Activate"}</button></div></td></tr>)}</tbody></table></div></section>{secret&&<div className="modal-backdrop"><section className="modal-card credential-card"><div className="login-seal">◆</div><h2>Temporary credential</h2><p>Copy this now. The password will not be shown again.</p><div className="credential"><span>Username</span><strong>{secret.username}</strong><span>Temporary password</span><code>{secret.password}</code></div><button className="primary-action" onClick={()=>setSecret(null)}>I have saved it</button></section></div>}</>;
+}
+
+function SystemSettings({flash}:{flash:(message:string)=>void}){
+  const [settings,setSettings]=useState<Setting[]>([]);const [audit,setAudit]=useState<AdminAudit[]>([]);const [error,setError]=useState("");
+  const load=useCallback(async()=>{const r=await fetch("/api/admin/settings");const x=await r.json();if(r.ok){setSettings(x.settings);setAudit(x.audit);}else setError(x.error);},[]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(()=>{load();},[load]);
+  async function save(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const values=Object.fromEntries(settings.map((s)=>[s.key,String(f.get(s.key)||"")]));const r=await fetch("/api/admin/settings",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({settings:values})});const x=await r.json();if(!r.ok)return setError(x.error);await load();flash("System settings saved and audit logged.");}
+  return <><section className="workspace-welcome"><div><p className="eyebrow">SYSTEM ADMINISTRATION</p><h2>System-wide settings</h2><p>Configuration changes are restricted to system administrators.</p></div></section>{error&&<div className="form-error">{error}</div>}<form className="card settings-form" onSubmit={save}>{settings.map((s)=><label key={s.key}><span>{s.key.replaceAll("_"," ")}</span><input name={s.key} defaultValue={s.value}/><small>{s.description}</small></label>)}<button className="primary-action">Save all settings</button></form><section className="card request-list audit-list"><div className="list-heading"><div><h3>Administration audit trail</h3><p>Most recent user and configuration changes.</p></div><span>{audit.length} events</span></div><div className="table-wrap"><table><thead><tr><th>Action</th><th>Administrator</th><th>Target</th><th>Date</th></tr></thead><tbody>{audit.map((a)=><tr key={a.id}><td><strong>{a.action.replaceAll("_"," ")}</strong></td><td>{a.actor_name}</td><td>{a.entity_type} · {a.entity_id}</td><td>{formatDateTime(a.created_at)}</td></tr>)}</tbody></table></div></section></>;
 }
 
 function Login({ onLogin }: { onLogin: (user: AuthUser) => void }) {
