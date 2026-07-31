@@ -75,7 +75,7 @@ export default function Home() {
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
       {user.mustChangePassword && <ChangePassword onDone={() => setUser({ ...user, mustChangePassword: false })} />}
       <aside className="sidebar">
-        <div className="brand"><div className="brand-mark">U</div><div><strong>UARS</strong><span>User Access Request System · v0.2.1</span></div></div>
+        <div className="brand"><div className="brand-mark">U</div><div><strong>UARS</strong><span>User Access Request System · v0.2.2</span></div></div>
         <nav aria-label="Main navigation">
           <button className={`nav-item ${view === "workspace" ? "active" : ""}`} onClick={() => { setView("workspace"); setSelected(null); }}><span>▦</span> Workspace</button>
           {user.role === "DO" && <button className={`nav-item ${view === "new" ? "active" : ""}`} onClick={() => setView("new")}><span>＋</span> New application</button>}

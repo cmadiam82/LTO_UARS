@@ -13,7 +13,7 @@ const accounts = [
 ];
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-console.log("UARS v0.2.1 INITIAL ACCOUNTS");
+console.log("UARS v0.2.2 INITIAL ACCOUNTS");
 console.log("Change each temporary password immediately after first login.\n");
 for (const [username, fullName, employeeId, email, office, role] of accounts) {
   const password = `Uars!${randomBytes(9).toString("base64url")}`;
