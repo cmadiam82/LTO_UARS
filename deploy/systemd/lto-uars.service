@@ -1,0 +1,24 @@
+[Unit]
+Description=LTO User Access Request System
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lto-uars
+Group=lto-uars
+WorkingDirectory=/opt/lto-uars/current
+Environment=NODE_ENV=production
+Environment=PORT=3003
+Environment=HOSTNAME=127.0.0.1
+ExecStart=/opt/lto-uars/node/bin/node /opt/lto-uars/current/node_modules/vinext/dist/cli.js start --port 3003 --hostname 127.0.0.1
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/log/lto-uars
+
+[Install]
+WantedBy=multi-user.target

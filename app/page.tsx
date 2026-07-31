@@ -61,7 +61,7 @@ export default function Home() {
     <main className="app-shell">
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
       <aside className="sidebar">
-        <div className="brand"><div className="brand-mark">U</div><div><strong>UARS</strong><span>User Access Request System</span></div></div>
+        <div className="brand"><div className="brand-mark">U</div><div><strong>UARS</strong><span>User Access Request System · v0.1.0</span></div></div>
         <nav aria-label="Main navigation">
           <a className="nav-item active" href="#"><span>▦</span> Workspace</a>
           <a className="nav-item" href="#"><span>⌁</span> My requests <em>2</em></a>
