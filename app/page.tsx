@@ -49,7 +49,7 @@ export default function Home() {
     setSelected({
       id:r.id,referenceNo:r.reference_no,applicantName:r.applicant_name,employeeId:r.employee_id,email:r.email,contactNo:r.contact_no,
       office:r.office,position:r.position,systemName:r.system_name,accessLevel:r.access_level,accountType:r.account_type,
-      requestedStartDate:r.requested_start_date,justification:r.justification,status:r.status,currentRole:r.current_role,
+      requestedStartDate:r.requested_start_date,justification:r.justification,status:r.status,currentRole:r.assigned_role,
       implementationId:r.implementation_id,createdAt:r.created_at,updatedAt:r.updated_at,closedAt:r.closed_at,
       events:data.events.map((e: Record<string,string>) => ({id:e.id,action:e.action,fromStatus:e.from_status,toStatus:e.to_status,notes:e.notes,actorName:e.actor_name,actorRole:e.actor_role,createdAt:e.created_at})),
     });
@@ -75,7 +75,7 @@ export default function Home() {
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
       {user.mustChangePassword && <ChangePassword onDone={() => setUser({ ...user, mustChangePassword: false })} />}
       <aside className="sidebar">
-        <div className="brand"><div className="brand-mark">U</div><div><strong>UARS</strong><span>User Access Request System · v0.2.0</span></div></div>
+        <div className="brand"><div className="brand-mark">U</div><div><strong>UARS</strong><span>User Access Request System · v0.2.1</span></div></div>
         <nav aria-label="Main navigation">
           <button className={`nav-item ${view === "workspace" ? "active" : ""}`} onClick={() => { setView("workspace"); setSelected(null); }}><span>▦</span> Workspace</button>
           {user.role === "DO" && <button className={`nav-item ${view === "new" ? "active" : ""}`} onClick={() => setView("new")}><span>＋</span> New application</button>}

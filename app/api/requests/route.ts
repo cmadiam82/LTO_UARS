@@ -6,19 +6,19 @@ import type { AccessRequest } from "../../../lib/types";
 type RequestRow = {
   id: string; reference_no: string; applicant_name: string; employee_id: string; email: string; contact_no: string;
   office: string; position: string; system_name: string; access_level: string; account_type: string;
-  requested_start_date: string; justification: string; status: string; current_role: AccessRequest["currentRole"];
+  requested_start_date: string; justification: string; status: string; assigned_role: AccessRequest["currentRole"];
   implementation_id: string | null; created_at: string; updated_at: string; closed_at: string | null;
 };
 
 const requestSelect = `SELECT id, reference_no, applicant_name, employee_id, email, contact_no, office, position,
- system_name, access_level, account_type, requested_start_date::text, justification, status, current_role,
+ system_name, access_level, account_type, requested_start_date::text, justification, status, assigned_role,
  implementation_id, created_at, updated_at, closed_at FROM uars.access_requests`;
 
 function mapRow(row: RequestRow): AccessRequest {
   return { id: row.id, referenceNo: row.reference_no, applicantName: row.applicant_name, employeeId: row.employee_id,
     email: row.email, contactNo: row.contact_no, office: row.office, position: row.position, systemName: row.system_name,
     accessLevel: row.access_level, accountType: row.account_type, requestedStartDate: row.requested_start_date,
-    justification: row.justification, status: row.status, currentRole: row.current_role, implementationId: row.implementation_id,
+    justification: row.justification, status: row.status, currentRole: row.assigned_role, implementationId: row.implementation_id,
     createdAt: row.created_at, updatedAt: row.updated_at, closedAt: row.closed_at, events: [] };
 }
 
@@ -44,10 +44,10 @@ export async function POST(request: Request) {
     const ref = `UAR-${new Date().getFullYear()}-${sequence.rows[0].nextval.padStart(5, "0")}`;
     const result = await client.query<RequestRow>(
       `INSERT INTO uars.access_requests (reference_no, requester_id, applicant_name, employee_id, email, contact_no,
-       office, position, system_name, access_level, account_type, requested_start_date, justification, status, current_role)
+       office, position, system_name, access_level, account_type, requested_start_date, justification, status, assigned_role)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'PENDING_ENDORSEMENT','HEAD_OF_OFFICE')
        RETURNING id, reference_no, applicant_name, employee_id, email, contact_no, office, position, system_name,
-        access_level, account_type, requested_start_date::text, justification, status, current_role, implementation_id,
+        access_level, account_type, requested_start_date::text, justification, status, assigned_role, implementation_id,
         created_at, updated_at, closed_at`,
       [ref,user.id,body.applicantName.trim(),body.employeeId.trim(),body.email.trim(),body.contactNo.trim(),body.office.trim(),body.position.trim(),body.systemName.trim(),body.accessLevel.trim(),body.accountType.trim(),body.requestedStartDate,body.justification.trim()],
     );

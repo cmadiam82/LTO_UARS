@@ -44,13 +44,13 @@ CREATE TABLE IF NOT EXISTS uars.access_requests (
   requested_start_date date NOT NULL,
   justification text NOT NULL,
   status varchar(50) NOT NULL,
-  current_role varchar(40),
+  assigned_role varchar(40),
   implementation_id varchar(40),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   closed_at timestamptz
 );
-CREATE INDEX IF NOT EXISTS idx_uars_requests_status_role ON uars.access_requests (status, current_role);
+CREATE INDEX IF NOT EXISTS idx_uars_requests_status_role ON uars.access_requests (status, assigned_role);
 CREATE INDEX IF NOT EXISTS idx_uars_requests_requester ON uars.access_requests (requester_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS uars.workflow_events (
