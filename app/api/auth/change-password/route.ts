@@ -5,6 +5,7 @@ import { query } from "../../../../lib/db";
 export async function POST(request: Request) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.identityProvider !== "LOCAL") return NextResponse.json({ error:"Password changes are managed by the external identity provider." },{status:400});
   const body = await request.json().catch(() => null) as { currentPassword?: string; newPassword?: string } | null;
   if (!body?.currentPassword || !body.newPassword || body.newPassword.length < 12) {
     return NextResponse.json({ error: "Use a new password with at least 12 characters." }, { status: 400 });

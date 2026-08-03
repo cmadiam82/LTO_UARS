@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSystemAdmin } from "../../../../lib/admin";
 import { transaction } from "../../../../lib/db";
+import { authenticationReadiness } from "../../../../lib/auth-provider";
 
 export async function GET() {
   const auth = await requireSystemAdmin(); if (auth.error) return auth.error;
@@ -9,7 +10,7 @@ export async function GET() {
       client.query(`SELECT key,value,description,updated_at FROM uars.system_settings ORDER BY key`),
       client.query(`SELECT id,actor_name,action,entity_type,entity_id,details,created_at FROM uars.admin_audit_events ORDER BY created_at DESC LIMIT 100`),
     ]);
-    return NextResponse.json({ settings:settings.rows, audit:audit.rows });
+    return NextResponse.json({ settings:settings.rows, audit:audit.rows, authentication:authenticationReadiness() });
   });
 }
 

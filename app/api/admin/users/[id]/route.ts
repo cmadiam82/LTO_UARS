@@ -21,7 +21,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ temporaryPassword });
     }
     const role = body.role || existing.rows[0].role; const isActive = typeof body.isActive === "boolean" ? body.isActive : existing.rows[0].is_active;
-    const updated = await client.query(`UPDATE uars.users SET role=$1,is_active=$2,updated_at=now() WHERE id=$3 RETURNING id,username,full_name,employee_id,email,office,role,is_active,must_change_password,created_at,updated_at`, [role,isActive,id]);
+    const updated = await client.query(`UPDATE uars.users SET role=$1,is_active=$2,updated_at=now() WHERE id=$3 RETURNING id,username,full_name,employee_id,email,office,role,identity_provider,is_active,must_change_password,created_at,updated_at`, [role,isActive,id]);
     if (!isActive) await client.query(`DELETE FROM uars.sessions WHERE user_id=$1`, [id]);
     await client.query(`INSERT INTO uars.admin_audit_events (actor_id,actor_name,action,entity_type,entity_id,details) VALUES ($1,$2,'USER_UPDATED','USER',$3,$4)`, [auth.user!.id,auth.user!.fullName,id,JSON.stringify({before:existing.rows[0],after:{role,is_active:isActive}})]);
     return NextResponse.json({ user: updated.rows[0] });

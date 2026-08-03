@@ -10,6 +10,7 @@ type Detail = AccessRequest & { events: WorkflowEvent[]; attachments:Attachment[
 type AdminUser = { id:string;username:string;full_name:string;employee_id:string;email:string;office:string;role:Role;is_active:boolean;must_change_password:boolean;created_at:string };
 type Setting = { key:string;value:string;description:string;updated_at:string };
 type AdminAudit = { id:string;actor_name:string;action:string;entity_type:string;entity_id:string;created_at:string };
+type AuthenticationStatus = {activeProvider:"LOCAL"|"KEYCLOAK";localAccountsEnabled:boolean;keycloak:{prepared:boolean;configured:boolean;implementationStatus:string;missingSettings:string[];issuerUrl:string;clientId:string;roleClaim:string;scopes:string}};
 
 const statusLabels: Record<string, string> = {
   PENDING_ENDORSEMENT: "Awaiting Head of Office",
@@ -80,9 +81,9 @@ export default function Home() {
   return (
     <main className="app-shell">
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
-      {user.mustChangePassword && <ChangePassword onDone={() => setUser({ ...user, mustChangePassword: false })} />}
+      {user.mustChangePassword && user.identityProvider === "LOCAL" && <ChangePassword onDone={() => setUser({ ...user, mustChangePassword: false })} />}
       <aside className="sidebar">
-        <div className="brand"><div className="brand-mark">U</div><div><strong>UARS</strong><span>User Access Request System · v0.4.0</span></div></div>
+        <div className="brand"><div className="brand-mark">U</div><div><strong>UARS</strong><span>User Access Request System · v0.5.0</span></div></div>
         <nav aria-label="Main navigation">
           <button className={`nav-item ${view === "workspace" ? "active" : ""}`} onClick={() => { setView("workspace"); setSelected(null); }}><span>▦</span> Workspace</button>
           {user.role === "DO" && <button className={`nav-item ${view === "new" ? "active" : ""}`} onClick={() => setView("new")}><span>＋</span> New application</button>}
@@ -122,12 +123,12 @@ function UserManagement({currentUser,flash}:{currentUser:AuthUser;flash:(message
 }
 
 function SystemSettings({flash}:{flash:(message:string)=>void}){
-  const [settings,setSettings]=useState<Setting[]>([]);const [audit,setAudit]=useState<AdminAudit[]>([]);const [error,setError]=useState("");
-  const load=useCallback(async()=>{const r=await fetch("/api/admin/settings");const x=await r.json();if(r.ok){setSettings(x.settings);setAudit(x.audit);}else setError(x.error);},[]);
+  const [settings,setSettings]=useState<Setting[]>([]);const [audit,setAudit]=useState<AdminAudit[]>([]);const [authentication,setAuthentication]=useState<AuthenticationStatus|null>(null);const [error,setError]=useState("");
+  const load=useCallback(async()=>{const r=await fetch("/api/admin/settings");const x=await r.json();if(r.ok){setSettings(x.settings);setAudit(x.audit);setAuthentication(x.authentication);}else setError(x.error);},[]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(()=>{load();},[load]);
   async function save(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const values=Object.fromEntries(settings.map((s)=>[s.key,String(f.get(s.key)||"")]));const r=await fetch("/api/admin/settings",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({settings:values})});const x=await r.json();if(!r.ok)return setError(x.error);await load();flash("System settings saved and audit logged.");}
-  return <><section className="workspace-welcome"><div><p className="eyebrow">SYSTEM ADMINISTRATION</p><h2>System-wide settings</h2><p>Configuration changes are restricted to system administrators.</p></div></section>{error&&<div className="form-error">{error}</div>}<form className="card settings-form" onSubmit={save}>{settings.map((s)=><label key={s.key}><span>{s.key.replaceAll("_"," ")}</span><input name={s.key} defaultValue={s.value}/><small>{s.description}</small></label>)}<button className="primary-action">Save all settings</button></form><section className="card request-list audit-list"><div className="list-heading"><div><h3>Administration audit trail</h3><p>Most recent user and configuration changes.</p></div><span>{audit.length} events</span></div><div className="table-wrap"><table><thead><tr><th>Action</th><th>Administrator</th><th>Target</th><th>Date</th></tr></thead><tbody>{audit.map((a)=><tr key={a.id}><td><strong>{a.action.replaceAll("_"," ")}</strong></td><td>{a.actor_name}</td><td>{a.entity_type} · {a.entity_id}</td><td>{formatDateTime(a.created_at)}</td></tr>)}</tbody></table></div></section></>;
+  return <><section className="workspace-welcome"><div><p className="eyebrow">SYSTEM ADMINISTRATION</p><h2>System-wide settings</h2><p>Configuration changes are restricted to system administrators.</p></div></section>{error&&<div className="form-error">{error}</div>}{authentication&&<section className="card auth-readiness"><div><span className="auth-icon">◆</span><div><p>AUTHENTICATION PROVIDER</p><h3>{authentication.activeProvider === "LOCAL" ? "Local UARS accounts active" : "Keycloak requested"}</h3><small>Keycloak integration is prepared but deliberately not enabled.</small></div></div><span className={`status-pill ${authentication.keycloak.configured?"done":"pending"}`}><i/>{authentication.keycloak.configured?"Configuration ready":"Configuration pending"}</span><dl><div><dt>Issuer</dt><dd>{authentication.keycloak.issuerUrl||"Not configured"}</dd></div><div><dt>Client ID</dt><dd>{authentication.keycloak.clientId||"Not configured"}</dd></div><div><dt>Role claim</dt><dd>{authentication.keycloak.roleClaim}</dd></div><div><dt>Scopes</dt><dd>{authentication.keycloak.scopes}</dd></div></dl>{authentication.keycloak.missingSettings.length>0&&<p className="auth-missing">Missing: {authentication.keycloak.missingSettings.join(", ")}</p>}</section>}<form className="card settings-form" onSubmit={save}>{settings.map((s)=><label key={s.key}><span>{s.key.replaceAll("_"," ")}</span><input name={s.key} defaultValue={s.value}/><small>{s.description}</small></label>)}<button className="primary-action">Save all settings</button></form><section className="card request-list audit-list"><div className="list-heading"><div><h3>Administration audit trail</h3><p>Most recent user and configuration changes.</p></div><span>{audit.length} events</span></div><div className="table-wrap"><table><thead><tr><th>Action</th><th>Administrator</th><th>Target</th><th>Date</th></tr></thead><tbody>{audit.map((a)=><tr key={a.id}><td><strong>{a.action.replaceAll("_"," ")}</strong></td><td>{a.actor_name}</td><td>{a.entity_type} · {a.entity_id}</td><td>{formatDateTime(a.created_at)}</td></tr>)}</tbody></table></div></section></>;
 }
 
 function Login({ onLogin }: { onLogin: (user: AuthUser) => void }) {

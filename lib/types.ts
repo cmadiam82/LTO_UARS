@@ -9,6 +9,7 @@ export const ROLES = [
 ] as const;
 
 export type Role = (typeof ROLES)[number];
+export type IdentityProvider = "LOCAL" | "KEYCLOAK";
 
 export type AuthUser = {
   id: string;
@@ -18,6 +19,7 @@ export type AuthUser = {
   email: string;
   office: string;
   role: Role;
+  identityProvider: IdentityProvider;
   mustChangePassword: boolean;
 };
 

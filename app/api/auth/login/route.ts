@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { authenticate, createSession, SESSION_COOKIE } from "../../../../lib/auth";
+import { localAuthenticationAvailable } from "../../../../lib/auth-provider";
 
 export async function POST(request: Request) {
+  if (!localAuthenticationAvailable()) return NextResponse.json({ error:"Keycloak sign-in is configured but not enabled in this release. Restore AUTH_PROVIDER=LOCAL." },{status:503});
   const body = await request.json().catch(() => null) as { username?: string; password?: string } | null;
   if (!body?.username || !body.password) return NextResponse.json({ error: "Username and password are required." }, { status: 400 });
   const user = await authenticate(body.username.trim(), body.password);

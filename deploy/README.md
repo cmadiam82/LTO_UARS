@@ -7,4 +7,5 @@ dedicated Node.js runtime under `/opt/lto-uars/node`.
 - Application port: `127.0.0.1:3003`
 - Nginx proxy port: `3300`
 - Service: `lto-uars.service`
-- Current release: `v0.1.0`
+- Authentication: local UARS accounts (`AUTH_PROVIDER=LOCAL`)
+- Keycloak readiness: see `docs/keycloak-integration.md` and `deploy/uars.env.example`
