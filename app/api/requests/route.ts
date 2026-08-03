@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { currentUser } from "../../../lib/auth";
 import { query, transaction } from "../../../lib/db";
 import type { AccessRequest } from "../../../lib/types";
@@ -36,10 +39,27 @@ export async function POST(request: Request) {
   const user = await currentUser();
   if (!user || user.role !== "DO") return NextResponse.json({ error: "Only DO accounts can submit applications." }, { status: 403 });
   if (user.mustChangePassword) return NextResponse.json({ error: "Change your temporary password before submitting." }, { status: 403 });
-  const body = await request.json().catch(() => null) as Record<string, string> | null;
+  const contentType = request.headers.get("content-type") || "";
+  let body: Record<string,string> | null = null;
+  let attachments: File[] = [];
+  if (contentType.includes("multipart/form-data")) {
+    const form = await request.formData().catch(() => null);
+    if (form) {
+      body = Object.fromEntries([...form.entries()].filter(([,value]) => typeof value === "string")) as Record<string,string>;
+      attachments = form.getAll("attachments").filter((value): value is File => typeof value !== "string" && value.size > 0);
+    }
+  } else body = await request.json().catch(() => null) as Record<string,string> | null;
   const required = ["applicantName","employeeId","email","contactNo","office","position","systemName","accessLevel","accountType","requestedStartDate","justification"];
   if (!body || required.some((key) => !body[key]?.trim())) return NextResponse.json({ error: "Complete every required field." }, { status: 400 });
-  const created = await transaction(async (client) => {
+  if (attachments.length > 5) return NextResponse.json({ error: "Attach no more than 5 files." }, { status:400 });
+  const allowedTypes = new Set(["application/pdf","image/png","image/jpeg","application/vnd.openxmlformats-officedocument.wordprocessingml.document","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]);
+  if (attachments.some((file) => file.size > 10 * 1024 * 1024)) return NextResponse.json({ error:"Each attachment must be 10 MB or smaller." }, { status:400 });
+  if (attachments.some((file) => !allowedTypes.has(file.type))) return NextResponse.json({ error:"Attachments must be PDF, PNG, JPG, DOCX, or XLSX files." }, { status:400 });
+  const uploadDir = process.env.UPLOAD_DIR || "/tmp/lto-uars-uploads";
+  const writtenFiles: string[] = [];
+  try {
+    await mkdir(uploadDir, { recursive:true });
+    const created = await transaction(async (client) => {
     const sequence = await client.query<{ nextval: string }>(`SELECT nextval('uars.request_number_seq')::text`);
     const configuredPrefix = await client.query<{value:string}>(`SELECT value FROM uars.system_settings WHERE key='request_prefix'`);
     const prefix = (configuredPrefix.rows[0]?.value || "UARS").replace(/[^A-Za-z0-9-]/g, "").slice(0, 12) || "UARS";
@@ -54,9 +74,18 @@ export async function POST(request: Request) {
       [ref,user.id,body.applicantName.trim(),body.employeeId.trim(),body.email.trim(),body.contactNo.trim(),body.office.trim(),body.position.trim(),body.systemName.trim(),body.accessLevel.trim(),body.accountType.trim(),body.requestedStartDate,body.justification.trim()],
     );
     const row = result.rows[0];
+    for (const file of attachments) {
+      const storedName = randomUUID(); const path = join(uploadDir,storedName);
+      await writeFile(path,Buffer.from(await file.arrayBuffer()),{flag:"wx",mode:0o640}); writtenFiles.push(path);
+      await client.query(`INSERT INTO uars.request_attachments (request_id,uploaded_by,original_name,stored_name,content_type,size_bytes) VALUES ($1,$2,$3,$4,$5,$6)`,[row.id,user.id,file.name.slice(0,255),storedName,file.type,file.size]);
+    }
     await client.query(`INSERT INTO uars.workflow_events (request_id,actor_id,actor_name,actor_role,action,from_status,to_status,notes) VALUES ($1,$2,$3,$4,'SUBMIT',NULL,'PENDING_ENDORSEMENT',$5)`, [row.id,user.id,user.fullName,user.role,"Application submitted"]);
     await client.query(`INSERT INTO uars.notifications (target_role,request_id,title,message) VALUES ('HEAD_OF_OFFICE',$1,$2,$3)`, [row.id,`Endorsement required · ${ref}`,`${user.fullName} submitted an access request.`]);
     return mapRow(row);
-  });
-  return NextResponse.json({ request: created }, { status: 201 });
+    });
+    return NextResponse.json({ request: created }, { status: 201 });
+  } catch (error) {
+    await Promise.all(writtenFiles.map((path)=>unlink(path).catch(()=>undefined)));
+    throw error;
+  }
 }

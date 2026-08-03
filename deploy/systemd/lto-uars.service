@@ -19,7 +19,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=true
-ReadWritePaths=/var/log/lto-uars
+ReadWritePaths=/var/log/lto-uars /opt/lto-uars/shared/uploads
 
 [Install]
 WantedBy=multi-user.target

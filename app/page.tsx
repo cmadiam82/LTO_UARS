@@ -5,7 +5,8 @@ import { ROLES, type AccessRequest, type AuthUser, type Role, type WorkflowEvent
 import { roleLabels, transitions } from "../lib/workflow";
 
 type Notice = { id: string; request_id: string; title: string; message: string; is_read: boolean; created_at: string };
-type Detail = AccessRequest & { events: WorkflowEvent[] };
+type Attachment = { id:string;originalName:string;contentType:string;sizeBytes:number;createdAt:string };
+type Detail = AccessRequest & { events: WorkflowEvent[]; attachments:Attachment[] };
 type AdminUser = { id:string;username:string;full_name:string;employee_id:string;email:string;office:string;role:Role;is_active:boolean;must_change_password:boolean;created_at:string };
 type Setting = { key:string;value:string;description:string;updated_at:string };
 type AdminAudit = { id:string;actor_name:string;action:string;entity_type:string;entity_id:string;created_at:string };
@@ -55,6 +56,7 @@ export default function Home() {
       requestedStartDate:r.requested_start_date,justification:r.justification,status:r.status,currentRole:r.assigned_role,
       implementationId:r.implementation_id,createdAt:r.created_at,updatedAt:r.updated_at,closedAt:r.closed_at,
       events:data.events.map((e: Record<string,string>) => ({id:e.id,action:e.action,fromStatus:e.from_status,toStatus:e.to_status,notes:e.notes,actorName:e.actor_name,actorRole:e.actor_role,createdAt:e.created_at})),
+      attachments:(data.attachments||[]).map((a:Record<string,string>)=>({id:a.id,originalName:a.original_name,contentType:a.content_type,sizeBytes:Number(a.size_bytes),createdAt:a.created_at})),
     });
   }, []);
 
@@ -80,7 +82,7 @@ export default function Home() {
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
       {user.mustChangePassword && <ChangePassword onDone={() => setUser({ ...user, mustChangePassword: false })} />}
       <aside className="sidebar">
-        <div className="brand"><div className="brand-mark">U</div><div><strong>UARS</strong><span>User Access Request System · v0.3.2</span></div></div>
+        <div className="brand"><div className="brand-mark">U</div><div><strong>UARS</strong><span>User Access Request System · v0.4.0</span></div></div>
         <nav aria-label="Main navigation">
           <button className={`nav-item ${view === "workspace" ? "active" : ""}`} onClick={() => { setView("workspace"); setSelected(null); }}><span>▦</span> Workspace</button>
           {user.role === "DO" && <button className={`nav-item ${view === "new" ? "active" : ""}`} onClick={() => setView("new")}><span>＋</span> New application</button>}
@@ -99,7 +101,7 @@ export default function Home() {
         </header>
         <div className="content">
           {view === "admin-users" ? <UserManagement currentUser={user} flash={flash}/> : view === "admin-settings" ? <SystemSettings flash={flash}/> : view === "new" ? <ApplicationForm user={user} onCreated={async (request) => { await loadRequests(); setView("workspace"); await loadDetail(request.id); flash(`${request.referenceNo} submitted for endorsement.`); }} /> :
-            selected ? <RequestDetail request={selected} user={user} onBack={() => setSelected(null)} onAction={async () => { await loadRequests(); await loadDetail(selected.id); await loadNotices(); flash("Action completed and the next office was notified."); }} /> :
+            selected ? <><RequestDetail request={selected} user={user} onBack={() => setSelected(null)} onAction={async () => { await loadRequests(); await loadDetail(selected.id); await loadNotices(); flash("Action completed and the next office was notified."); }} /><AttachmentsPanel request={selected}/></> :
             <WorkspaceHome user={user} requests={requests} onSelect={loadDetail} onNew={() => setView("new")} />}
         </div>
       </section>
@@ -152,8 +154,8 @@ function WorkspaceHome({ user, requests, onSelect, onNew }: { user:AuthUser; req
 
 function ApplicationForm({ user,onCreated }:{user:AuthUser;onCreated:(r:AccessRequest)=>void}){
   const [error,setError]=useState("");const [busy,setBusy]=useState(false);
-  async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();setBusy(true);setError("");const body=Object.fromEntries(new FormData(e.currentTarget));const r=await fetch("/api/requests",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const x=await r.json();setBusy(false);if(!r.ok)return setError(x.error);onCreated(x.request);}
-  return <form className="application-form" onSubmit={submit}><section className="form-intro"><span>NEW APPLICATION</span><h2>User access request</h2><p>Fields marked required become part of the permanent application record.</p></section>{error&&<div className="form-error">{error}</div>}<section className="card form-section"><h3>Applicant information</h3><div className="form-grid"><Field name="applicantName" label="Full name" defaultValue={user.fullName}/><Field name="employeeId" label="Employee ID" defaultValue={user.employeeId}/><Field name="email" label="Official email" type="email" defaultValue={user.email}/><Field name="contactNo" label="Contact number"/><Field name="office" label="Office / Division" defaultValue={user.office}/><Field name="position" label="Position / Designation"/></div></section><section className="card form-section"><h3>Access requirements</h3><div className="form-grid"><Field name="systemName" label="System / Application"/><Field name="accessLevel" label="Requested access level"/><label><span>Account type</span><select name="accountType" required><option value="">Select account type</option><option>Named user account</option><option>Shared service account</option><option>Privileged account</option></select></label><Field name="requestedStartDate" label="Requested start date" type="date"/></div><label className="full-field"><span>Business justification</span><textarea name="justification" required minLength={20} placeholder="Explain why this access is required for official duties…"/></label></section><div className="form-submit"><p>Submission routes this request to the Head of Office for endorsement.</p><button className="primary-action" disabled={busy}>{busy?"Submitting…":"Submit application"}<span>→</span></button></div></form>;
+  async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();setBusy(true);setError("");const body=new FormData(e.currentTarget);const r=await fetch("/api/requests",{method:"POST",body});const x=await r.json();setBusy(false);if(!r.ok)return setError(x.error);onCreated(x.request);}
+  return <form className="application-form" onSubmit={submit}><section className="form-intro"><span>NEW APPLICATION</span><h2>User access request</h2><p>Fields marked required become part of the permanent application record.</p></section>{error&&<div className="form-error">{error}</div>}<section className="card form-section"><h3>Applicant information</h3><div className="form-grid"><Field name="applicantName" label="Full name" defaultValue={user.fullName}/><Field name="employeeId" label="Employee ID" defaultValue={user.employeeId}/><Field name="email" label="Official email" type="email" defaultValue={user.email}/><Field name="contactNo" label="Contact number"/><Field name="office" label="Office / Division" defaultValue={user.office}/><Field name="position" label="Position / Designation"/></div></section><section className="card form-section"><h3>Access requirements</h3><div className="form-grid"><Field name="systemName" label="System / Application"/><Field name="accessLevel" label="Requested access level"/><label><span>Account type</span><select name="accountType" required><option value="">Select account type</option><option>Named user account</option><option>Shared service account</option><option>Privileged account</option></select></label><Field name="requestedStartDate" label="Requested start date" type="date"/></div><label className="full-field"><span>Business justification</span><textarea name="justification" required minLength={20} placeholder="Explain why this access is required for official duties…"/></label><label className="full-field attachment-field"><span>Supporting attachments <em>Optional</em></span><input name="attachments" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx"/><small>Up to 5 files · PDF, PNG, JPG, DOCX, or XLSX · 10 MB each</small></label></section><div className="form-submit"><p>Submission routes this request to the Head of Office for endorsement.</p><button className="primary-action" disabled={busy}>{busy?"Uploading and submitting…":"Submit application"}<span>→</span></button></div></form>;
 }
 
 function RequestDetail({request,user,onBack,onAction}:{request:Detail;user:AuthUser;onBack:()=>void;onAction:()=>void}){
@@ -164,8 +166,11 @@ function RequestDetail({request,user,onBack,onAction}:{request:Detail;user:AuthU
 }
 
 function Notifications({notices,onClose,onOpen}:{notices:Notice[];onClose:()=>void;onOpen:(id:string)=>void}){return <div className="modal-backdrop align-right"><section className="notification-drawer"><header><div><h2>Notifications</h2><p>Workflow updates assigned to you</p></div><button onClick={onClose}>×</button></header><div>{notices.length===0?<div className="empty-state"><strong>You’re all caught up</strong><p>No notifications yet.</p></div>:notices.map((n)=><button className={`notice-item ${!n.is_read?"unread":""}`} key={n.id} onClick={()=>onOpen(n.request_id)}><i/><div><strong>{n.title}</strong><p>{n.message}</p><span>{formatDateTime(n.created_at)}</span></div></button>)}</div></section></div>}
+function AttachmentsPanel({request}:{request:Detail}){return <section className="card attachments-panel"><div className="list-heading"><div><h3>Supporting attachments</h3><p>Files submitted with this application</p></div><span>{request.attachments.length} files</span></div>{request.attachments.length===0?<div className="empty-state compact"><strong>No attachments</strong><p>No supporting files were submitted.</p></div>:<div className="attachment-list">{request.attachments.map((a)=><a key={a.id} href={`/api/requests/${request.id}/attachments/${a.id}`}><span className="file-type">{fileExtension(a.originalName)}</span><div><strong>{a.originalName}</strong><small>{formatFileSize(a.sizeBytes)} · Uploaded {formatDateTime(a.createdAt)}</small></div><b>Download ↓</b></a>)}</div>}</section>}
 function Field({name,label,type="text",defaultValue}:{name:string;label:string;type?:string;defaultValue?:string}){return <label><span>{label}</span><input name={name} type={type} defaultValue={defaultValue} required/></label>}
 function Info({label,value}:{label:string;value:string}){return <div className="info"><span>{label}</span><strong>{value}</strong></div>}
 function initials(name:string){return name.split(" ").map((n)=>n[0]).slice(0,2).join("").toUpperCase()}
 function formatDate(value:string){return new Intl.DateTimeFormat("en-PH",{dateStyle:"medium"}).format(new Date(value))}
 function formatDateTime(value:string){return new Intl.DateTimeFormat("en-PH",{dateStyle:"medium",timeStyle:"short"}).format(new Date(value))}
+function formatFileSize(bytes:number){return bytes<1024*1024?`${Math.max(1,Math.round(bytes/1024))} KB`:`${(bytes/1024/1024).toFixed(1)} MB`}
+function fileExtension(name:string){return name.includes(".")?name.split(".").pop()!.slice(0,5).toUpperCase():"FILE"}
