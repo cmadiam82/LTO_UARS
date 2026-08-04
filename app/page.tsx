@@ -87,7 +87,7 @@ export default function Home() {
     <main className="app-shell">
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
       <aside className="sidebar">
-        <div className="brand"><AgencyLogos compact/><div><strong>LTOCM</strong><span>LTO Credentials Management · v1.1.1</span></div></div>
+        <div className="brand"><AgencyLogos compact/><div><strong>LTOCM</strong><span>LTO Credentials Management · v1.1.2</span></div></div>
         <nav aria-label="Main navigation">
           <button className={`nav-item ${view === "workspace" ? "active" : ""}`} onClick={() => { setView("workspace"); setSelected(null); }}><span>▦</span> Workspace</button>
           {user.role === "DO" && <button className={`nav-item ${view === "new" ? "active" : ""}`} onClick={() => setView("new")}><span>＋</span> New application</button>}
