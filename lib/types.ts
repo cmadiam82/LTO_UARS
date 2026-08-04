@@ -21,6 +21,7 @@ export type AuthUser = {
   role: Role;
   identityProvider: IdentityProvider;
   mustChangePassword: boolean;
+  policyAccepted: boolean;
 };
 
 export type AccessRequest = {

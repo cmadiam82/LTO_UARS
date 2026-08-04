@@ -18,6 +18,7 @@ type UserRow = {
   identity_provider: IdentityProvider;
   must_change_password: boolean;
   is_active: boolean;
+  policy_accepted: boolean;
 };
 
 export function hashPassword(password: string): string {
@@ -49,13 +50,15 @@ function toUser(row: UserRow): AuthUser {
     role: row.role,
     identityProvider: row.identity_provider,
     mustChangePassword: row.must_change_password,
+    policyAccepted: row.policy_accepted,
   };
 }
 
 export async function authenticate(username: string, password: string): Promise<AuthUser | null> {
   const result = await query<UserRow>(
     `SELECT id, username, password_hash, full_name, employee_id, email, office, role, identity_provider,
-            must_change_password, is_active
+            must_change_password, is_active,
+            EXISTS (SELECT 1 FROM uars.policy_acceptances p WHERE p.user_id=users.id AND p.policy_version='LTOCM-2026-08-04') AS policy_accepted
        FROM uars.users WHERE lower(username) = lower($1) AND identity_provider='LOCAL'`,
     [username],
   );
@@ -79,7 +82,8 @@ export async function currentUser(): Promise<AuthUser | null> {
   if (!token) return null;
   const result = await query<UserRow>(
     `SELECT u.id, u.username, u.password_hash, u.full_name, u.employee_id, u.email,
-            u.office, u.role, u.identity_provider, u.must_change_password, u.is_active
+            u.office, u.role, u.identity_provider, u.must_change_password, u.is_active,
+            EXISTS (SELECT 1 FROM uars.policy_acceptances p WHERE p.user_id=u.id AND p.policy_version='LTOCM-2026-08-04') AS policy_accepted
        FROM uars.sessions s JOIN uars.users u ON u.id = s.user_id
       WHERE s.token_hash = $1 AND s.expires_at > now() AND u.is_active = true`,
     [tokenHash(token)],

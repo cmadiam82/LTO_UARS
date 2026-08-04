@@ -5,6 +5,7 @@ import { query } from "../../../../lib/db";
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user.policyAccepted) return NextResponse.json({ error: "Accept the LTOCM Policy Agreement first." }, { status: 403 });
   const { id } = await context.params;
   const requestResult = await query(`SELECT ar.*, ar.requested_start_date::text FROM uars.access_requests ar WHERE ar.id=$1 AND ($2::text <> 'DO' OR ar.requester_id=$3)`, [id,user.role,user.id]);
   if (!requestResult.rows[0]) return NextResponse.json({ error: "Request not found." }, { status: 404 });

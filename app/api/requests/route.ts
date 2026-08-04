@@ -38,6 +38,7 @@ function mapRow(row: RequestRow): AccessRequest {
 export async function GET() {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user.policyAccepted) return NextResponse.json({ error: "Accept the LTOCM Policy Agreement first." }, { status: 403 });
   const values: unknown[] = [];
   let where = "";
   if (user.role === "DO") { values.push(user.id); where = " WHERE requester_id = $1"; }
@@ -48,6 +49,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const user = await currentUser();
   if (!user || user.role !== "DO") return NextResponse.json({ error: "Only DO accounts can submit applications." }, { status: 403 });
+  if (!user.policyAccepted) return NextResponse.json({ error: "Accept the LTOCM Policy Agreement first." }, { status: 403 });
   if (user.mustChangePassword) return NextResponse.json({ error: "Change your temporary password before submitting." }, { status: 403 });
   const contentType = request.headers.get("content-type") || "";
   let body: Record<string,string> | null = null;

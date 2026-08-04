@@ -6,6 +6,7 @@ import { roleLabels, transitions } from "../../../../../lib/workflow";
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!user.policyAccepted) return NextResponse.json({ error: "Accept the LTOCM Policy Agreement first." }, { status: 403 });
   if (user.mustChangePassword) return NextResponse.json({ error: "Change your temporary password first." }, { status: 403 });
   const { id } = await context.params;
   const body = await request.json().catch(() => null) as { action?: string; notes?: string; password?: string } | null;
