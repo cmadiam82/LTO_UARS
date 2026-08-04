@@ -1,6 +1,6 @@
 {
-  "name": "uars-access-request-system",
-  "version": "0.5.0",
+  "name": "lto-credentials-management",
+  "version": "1.0.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"

@@ -2,18 +2,18 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "UARS · User Access Request System",
-  description: "Secure, accountable access approvals from request to implementation.",
+  title: "LTOCM · LTO Credentials Management",
+  description: "Secure, accountable LTO credentials management from request to implementation.",
   icons: { icon: "/favicon.svg" },
   openGraph: {
-    title: "UARS · User Access Request System",
-    description: "Secure access. Clear accountability.",
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "UARS secure six-step access approval workflow" }],
+    title: "LTOCM · LTO Credentials Management",
+    description: "Secure credentials. Clear accountability.",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "LTOCM secure credentials approval workflow" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "UARS · User Access Request System",
-    description: "Secure access. Clear accountability.",
+    title: "LTOCM · LTO Credentials Management",
+    description: "Secure credentials. Clear accountability.",
     images: ["/og.png"],
   },
 };

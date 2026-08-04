@@ -27,6 +27,8 @@ export type AccessRequest = {
   id: string;
   referenceNo: string;
   applicantName: string;
+  agencyCode: string;
+  immediateSuperior: string;
   employeeId: string;
   email: string;
   contactNo: string;
@@ -34,7 +36,14 @@ export type AccessRequest = {
   position: string;
   systemName: string;
   accessLevel: string;
+  accessLevels: string[];
   accountType: string;
+  changeOfficeRequested: boolean;
+  changeOfficeFrom: string | null;
+  changeOfficeTo: string | null;
+  loginMode: string | null;
+  ltmsModules: string[];
+  ltmsOther: string | null;
   requestedStartDate: string;
   justification: string;
   status: string;

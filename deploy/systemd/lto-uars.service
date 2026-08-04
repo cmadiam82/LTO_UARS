@@ -1,5 +1,5 @@
 [Unit]
-Description=LTO User Access Request System
+Description=LTO Credentials Management
 After=network-online.target
 Wants=network-online.target
 
