@@ -6,6 +6,7 @@ import Image from "next/image";
 import { ROLES, type AccessRequest, type AuthUser, type Role, type WorkflowEvent } from "../lib/types";
 import { roleLabels, transitions } from "../lib/workflow";
 import { ACCESS_LEVELS, ACCOUNT_TYPES, LOGIN_MODES, LTMS_MODULE_GROUPS, SYSTEM_OPTIONS } from "../lib/request-options";
+import { IDLE_TIMEOUT_MINUTES, IDLE_TIMEOUT_MS } from "../lib/security";
 
 type Notice = { id: string; request_id: string; title: string; message: string; is_read: boolean; created_at: string };
 type Attachment = { id:string;originalName:string;contentType:string;sizeBytes:number;createdAt:string };
@@ -40,6 +41,7 @@ export default function Home() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [showNotices, setShowNotices] = useState(false);
   const [toast, setToast] = useState("");
+  const [idleLogout, setIdleLogout] = useState(false);
 
   const loadRequests = useCallback(async () => {
     const response = await fetch("/api/requests");
@@ -74,12 +76,21 @@ export default function Home() {
   // Data is refreshed whenever the authenticated identity changes.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (user?.policyAccepted && !user.mustChangePassword) { loadRequests(); loadNotices(); } }, [user, loadRequests, loadNotices]);
+  useEffect(() => {
+    if (!user) return;
+    let timer:number; let lastHeartbeat=Date.now(); let ended=false;
+    const expire=()=>{if(ended)return;ended=true;void fetch("/api/auth/logout",{method:"POST",keepalive:true});setUser(null);setSelected(null);setIdleLogout(true);};
+    const reset=()=>{if(ended)return;window.clearTimeout(timer);timer=window.setTimeout(expire,IDLE_TIMEOUT_MS);if(Date.now()-lastHeartbeat>60_000){lastHeartbeat=Date.now();void fetch("/api/session").then(r=>{if(r.status===401)expire();});}};
+    const events:(keyof WindowEventMap)[]=["mousedown","mousemove","keydown","scroll","touchstart"];
+    events.forEach(event=>window.addEventListener(event,reset,{passive:true}));reset();
+    return()=>{ended=true;window.clearTimeout(timer);events.forEach(event=>window.removeEventListener(event,reset));};
+  },[user]);
 
   function flash(message: string) { setToast(message); window.setTimeout(() => setToast(""), 4000); }
-  async function logout() { await fetch("/api/auth/logout", { method: "POST" }); setUser(null); setSelected(null); }
+  async function logout() { await fetch("/api/auth/logout", { method: "POST" }); setIdleLogout(false); setUser(null); setSelected(null); }
 
   if (loading) return <div className="screen-loader"><AgencyLogos/><p>Opening secure workspace…</p></div>;
-  if (!user) return <Login onLogin={(nextUser)=>{setUser(nextUser);setView(nextUser.role==="SYSTEM_ADMIN"?"admin-users":"workspace");}} />;
+  if (!user) return <Login inactivityNotice={idleLogout} onDismissNotice={()=>setIdleLogout(false)} onLogin={(nextUser)=>{setIdleLogout(false);setUser(nextUser);setView(nextUser.role==="SYSTEM_ADMIN"?"admin-users":"workspace");}} />;
   if (user.mustChangePassword && user.identityProvider === "LOCAL") return <ChangePassword onDone={() => setUser({ ...user, mustChangePassword: false })} />;
   if (!user.policyAccepted) return <PolicyAgreement user={user} onAccepted={() => setUser({...user,policyAccepted:true})} onLogout={logout}/>;
 
@@ -88,7 +99,7 @@ export default function Home() {
     <main className="app-shell">
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
       <aside className="sidebar">
-        <div className="brand"><AgencyLogos compact/><div><strong>LTOCM</strong><span>LTO Credentials Management · v1.1.4</span></div></div>
+        <div className="brand"><AgencyLogos compact/><div><strong>LTOCM</strong><span>LTO Credentials Management · v1.2.0</span></div></div>
         <nav aria-label="Main navigation">
           <button className={`nav-item ${view === "workspace" ? "active" : ""}`} onClick={() => { setView("workspace"); setSelected(null); }}><span>▦</span> Workspace</button>
           {user.role === "DO" && <button className={`nav-item ${view === "new" ? "active" : ""}`} onClick={() => setView("new")}><span>＋</span> New application</button>}
@@ -136,7 +147,7 @@ function SystemSettings({flash}:{flash:(message:string)=>void}){
   return <><section className="workspace-welcome"><div><p className="eyebrow">SYSTEM ADMINISTRATION</p><h2>System-wide settings</h2><p>Configuration changes are restricted to system administrators.</p></div></section>{error&&<div className="form-error">{error}</div>}{authentication&&<section className="card auth-readiness"><div><span className="auth-icon">◆</span><div><p>AUTHENTICATION PROVIDER</p><h3>{authentication.activeProvider === "LOCAL" ? "Local LTOCM accounts active" : "Keycloak requested"}</h3><small>Keycloak integration is prepared but deliberately not enabled.</small></div></div><span className={`status-pill ${authentication.keycloak.configured?"done":"pending"}`}><i/>{authentication.keycloak.configured?"Configuration ready":"Configuration pending"}</span><dl><div><dt>Issuer</dt><dd>{authentication.keycloak.issuerUrl||"Not configured"}</dd></div><div><dt>Client ID</dt><dd>{authentication.keycloak.clientId||"Not configured"}</dd></div><div><dt>Role claim</dt><dd>{authentication.keycloak.roleClaim}</dd></div><div><dt>Scopes</dt><dd>{authentication.keycloak.scopes}</dd></div></dl>{authentication.keycloak.missingSettings.length>0&&<p className="auth-missing">Missing: {authentication.keycloak.missingSettings.join(", ")}</p>}</section>}<form className="card settings-form" onSubmit={save}>{settings.map((s)=><label key={s.key}><span>{s.key.replaceAll("_"," ")}</span><input name={s.key} defaultValue={s.value}/><small>{s.description}</small></label>)}<button className="primary-action">Save all settings</button></form><section className="card request-list audit-list"><div className="list-heading"><div><h3>Administration audit trail</h3><p>Most recent user and configuration changes.</p></div><span>{audit.length} events</span></div><div className="table-wrap"><table><thead><tr><th>Action</th><th>Administrator</th><th>Target</th><th>Date</th></tr></thead><tbody>{audit.map((a)=><tr key={a.id}><td><strong>{a.action.replaceAll("_"," ")}</strong></td><td>{a.actor_name}</td><td>{a.entity_type} · {a.entity_id}</td><td>{formatDateTime(a.created_at)}</td></tr>)}</tbody></table></div></section></>;
 }
 
-function Login({ onLogin }: { onLogin: (user: AuthUser) => void }) {
+function Login({ onLogin,inactivityNotice,onDismissNotice }: { onLogin: (user: AuthUser) => void;inactivityNotice:boolean;onDismissNotice:()=>void }) {
   const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError("");
@@ -144,7 +155,7 @@ function Login({ onLogin }: { onLogin: (user: AuthUser) => void }) {
     const response = await fetch("/api/auth/login", { method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({username:data.get("username"),password:data.get("password")}) });
     const result = await response.json(); setBusy(false); if (!response.ok) return setError(result.error); onLogin(result.user);
   }
-  return <main className="login-page"><section className="login-story"><div className="brand login-brand"><AgencyLogos/><div><strong>LTOCM</strong><span>LTO CREDENTIALS MANAGEMENT</span></div></div><div><p className="eyebrow">SECURE CREDENTIALS GOVERNANCE</p><h1>Every credential request.<br/>Clear, accountable, complete.</h1><p>One protected workflow from application and endorsement to approval, implementation, and automatic closure.</p></div><div className="login-steps"><span>01 Submit</span><span>02 Review</span><span>03 Approve</span><span>04 Implement</span></div></section><section className="login-panel"><form onSubmit={submit}><div className="login-mid-logo"><img src="/mid-logo.png" width="288" height="141" alt="LTO Management Information Division (MID)"/></div><h2>Welcome back</h2><p>Sign in with your assigned LTOCM account.</p>{error && <div className="form-error">{error}</div>}<label><span>Username</span><input name="username" autoComplete="username" required autoFocus placeholder="Enter your username"/></label><label><span>Password</span><input name="password" type="password" autoComplete="current-password" required placeholder="Enter your password"/></label><button className="primary-action" disabled={busy}>{busy ? "Signing in…" : "Sign in securely"}<span>→</span></button><small>Authorized personnel only · All activity is audit logged</small></form></section></main>;
+  return <main className="login-page"><section className="login-story"><div className="brand login-brand"><AgencyLogos/><div><strong>LTOCM</strong><span>LTO CREDENTIALS MANAGEMENT</span></div></div><div><p className="eyebrow">SECURE CREDENTIALS GOVERNANCE</p><h1>Every credential request.<br/>Clear, accountable, complete.</h1><p>One protected workflow from application and endorsement to approval, implementation, and automatic closure.</p></div><div className="login-steps"><span>01 Submit</span><span>02 Review</span><span>03 Approve</span><span>04 Implement</span></div></section><section className="login-panel"><form onSubmit={submit}><div className="login-mid-logo"><img src="/mid-logo.png" width="288" height="141" alt="LTO Management Information Division (MID)"/></div><h2>Welcome back</h2><p>Sign in with your assigned LTOCM account.</p>{error && <div className="form-error">{error}</div>}<label><span>Username</span><input name="username" autoComplete="username" required autoFocus placeholder="Enter your username"/></label><label><span>Password</span><input name="password" type="password" autoComplete="current-password" required placeholder="Enter your password"/></label><button className="primary-action" disabled={busy}>{busy ? "Signing in…" : "Sign in securely"}<span>→</span></button><small>Authorized personnel only · All activity is audit logged</small></form></section>{inactivityNotice&&<div className="modal-backdrop"><section className="modal-card idle-card" role="alertdialog" aria-modal="true" aria-labelledby="idle-title"><div className="idle-icon">⌛</div><h2 id="idle-title">Automatically signed out</h2><p>You were logged out after {IDLE_TIMEOUT_MINUTES} minutes of inactivity to protect your account.</p><button className="primary-action" onClick={onDismissNotice}>Return to sign in</button></section></div>}</main>;
 }
 
 function ChangePassword({ onDone }: { onDone: () => void }) {

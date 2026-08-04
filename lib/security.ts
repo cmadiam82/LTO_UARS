@@ -1,0 +1,2 @@
+export const IDLE_TIMEOUT_MINUTES = 15;
+export const IDLE_TIMEOUT_MS = IDLE_TIMEOUT_MINUTES * 60 * 1000;

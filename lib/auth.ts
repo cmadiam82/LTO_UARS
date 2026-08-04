@@ -2,6 +2,7 @@ import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypt
 import { cookies } from "next/headers";
 import { query } from "./db";
 import type { AuthUser, IdentityProvider, Role } from "./types";
+import { IDLE_TIMEOUT_MINUTES } from "./security";
 
 export const SESSION_COOKIE = "uars_session";
 const SESSION_HOURS = 12;
@@ -57,8 +58,7 @@ function toUser(row: UserRow): AuthUser {
 export async function authenticate(username: string, password: string): Promise<AuthUser | null> {
   const result = await query<UserRow>(
     `SELECT id, username, password_hash, full_name, employee_id, email, office, role, identity_provider,
-            must_change_password, is_active,
-            EXISTS (SELECT 1 FROM uars.policy_acceptances p WHERE p.user_id=users.id AND p.policy_version='LTOCM-2026-08-04') AS policy_accepted
+            must_change_password, is_active, false AS policy_accepted
        FROM uars.users WHERE lower(username) = lower($1) AND identity_provider='LOCAL'`,
     [username],
   );
@@ -83,12 +83,26 @@ export async function currentUser(): Promise<AuthUser | null> {
   const result = await query<UserRow>(
     `SELECT u.id, u.username, u.password_hash, u.full_name, u.employee_id, u.email,
             u.office, u.role, u.identity_provider, u.must_change_password, u.is_active,
-            EXISTS (SELECT 1 FROM uars.policy_acceptances p WHERE p.user_id=u.id AND p.policy_version='LTOCM-2026-08-04') AS policy_accepted
+            (s.policy_accepted_at IS NOT NULL) AS policy_accepted
        FROM uars.sessions s JOIN uars.users u ON u.id = s.user_id
-      WHERE s.token_hash = $1 AND s.expires_at > now() AND u.is_active = true`,
-    [tokenHash(token)],
+      WHERE s.token_hash = $1 AND s.expires_at > now()
+        AND s.last_activity_at > now() - ($2::text || ' minutes')::interval
+        AND u.is_active = true`,
+    [tokenHash(token), IDLE_TIMEOUT_MINUTES],
   );
-  return result.rows[0] ? toUser(result.rows[0]) : null;
+  if (!result.rows[0]) {
+    await query(`DELETE FROM uars.sessions WHERE token_hash=$1`, [tokenHash(token)]);
+    return null;
+  }
+  await query(`UPDATE uars.sessions SET last_activity_at=now() WHERE token_hash=$1`, [tokenHash(token)]);
+  return toUser(result.rows[0]);
+}
+
+export async function acceptPolicyForCurrentSession() {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (!token) return null;
+  const result = await query<{id:string}>(`UPDATE uars.sessions SET policy_accepted_at=now(),last_activity_at=now() WHERE token_hash=$1 RETURNING id`, [tokenHash(token)]);
+  return result.rows[0]?.id || null;
 }
 
 export async function revokeCurrentSession() {

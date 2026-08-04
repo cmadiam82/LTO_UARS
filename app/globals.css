@@ -23,3 +23,5 @@ button.nav-item{width:100%;border:0;background:none;text-align:left;cursor:point
 .agency-logos{display:flex;align-items:center;gap:10px;flex:0 0 auto;background:transparent}.agency-logos img{display:block;width:52px;height:52px;object-fit:contain}.agency-logos .bagong-logo{width:56px}.agency-logos.compact{gap:5px}.agency-logos.compact img{width:26px;height:26px}.agency-logos.compact .bagong-logo{width:29px}.login-brand{align-items:center}.sidebar .brand{gap:9px;padding-left:0;padding-right:0}.sidebar .brand strong{font-size:18px}.sidebar .brand span{font-size:8px}
 
 .login-mid-logo{width:100%;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;background:transparent}.login-mid-logo img{display:block;width:min(288px,100%);height:auto;object-fit:contain}
+
+.idle-card{width:min(410px,100%);text-align:center}.idle-icon{width:52px;height:52px;margin:0 auto 17px;display:grid;place-items:center;border-radius:50%;background:#fff0d8;color:#98600e;font-size:24px}.idle-card .primary-action{height:43px;margin-top:5px}
