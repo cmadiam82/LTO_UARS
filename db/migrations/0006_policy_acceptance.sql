@@ -10,3 +10,6 @@ CREATE TABLE IF NOT EXISTS uars.policy_acceptances (
 );
 
 CREATE INDEX IF NOT EXISTS policy_acceptances_user_idx ON uars.policy_acceptances(user_id);
+
+-- Keep ownership consistent with the isolated LTOCM schema on the development server.
+ALTER TABLE uars.policy_acceptances OWNER TO lto_uars_app;
