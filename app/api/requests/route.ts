@@ -66,6 +66,12 @@ export async function POST(request: Request) {
   } else body = await request.json().catch(() => null) as Record<string,string> | null;
   const required = ["applicantName","agencyCode","immediateSuperior","systemName","accountType"];
   if (!body || required.some((key) => !body[key]?.trim())) return NextResponse.json({ error: "Complete every required field." }, { status: 400 });
+  const [agencyCode, supervisor] = await Promise.all([
+    query(`SELECT 1 FROM uars.users WHERE is_active=true AND employee_id=$1 LIMIT 1`, [body.agencyCode.trim()]),
+    query(`SELECT 1 FROM uars.users WHERE is_active=true AND role='HEAD_OF_OFFICE' AND full_name=$1 LIMIT 1`, [body.immediateSuperior.trim()]),
+  ]);
+  if (agencyCode.rowCount === 0) return NextResponse.json({ error: "Select a valid agency code." }, { status: 400 });
+  if (supervisor.rowCount === 0) return NextResponse.json({ error: "Select a valid immediate supervisor." }, { status: 400 });
   if(!SYSTEM_OPTIONS.includes(body.systemName as typeof SYSTEM_OPTIONS[number]))return NextResponse.json({error:"Select a valid system or application."},{status:400});
   if(!ACCOUNT_TYPES.includes(body.accountType as typeof ACCOUNT_TYPES[number]))return NextResponse.json({error:"Select a valid account type."},{status:400});
   if(accessLevels.length===0||accessLevels.some((value)=>!ACCESS_LEVELS.includes(value as typeof ACCESS_LEVELS[number])))return NextResponse.json({error:"Select at least one valid request access level."},{status:400});
