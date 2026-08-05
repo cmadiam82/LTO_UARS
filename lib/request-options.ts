@@ -8,7 +8,7 @@ export const SYSTEM_OPTIONS = [
 ] as const;
 
 export const ACCESS_LEVELS = ["Evaluator","Cashier","Inspector","Assistant Chief","District Chief","Regional Office Personnel","RO Division/ Section/ Unit Chief","Regional Director","Assistant Regional Director","Central Office Personnel","CO Division/ Section/ Unit Chief","Executive Director","Assistant Secretary","Medical Stakeholder","Driving School","MAIRDS","PETC","PMVIC","Service Provider"] as const;
-export const ACCOUNT_TYPES = ["New Account","Add Role","Remove Role","Reactive User","Deactive User"] as const;
+export const ACCOUNT_TYPES = ["New Account","Add Role","Remove Role","Transfer Office","Reactive User","Deactive User"] as const;
 export const LOGIN_MODES = ["Password","Fingerprint","Facial Recognition"] as const;
 export const EMPLOYMENT_STATUSES = ["Regular","Job Order","Contract of Service","LTO Stakeholder"] as const;
 
