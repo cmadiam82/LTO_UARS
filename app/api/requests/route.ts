@@ -5,13 +5,13 @@ import { randomUUID } from "node:crypto";
 import { currentUser } from "../../../lib/auth";
 import { query, transaction } from "../../../lib/db";
 import type { AccessRequest } from "../../../lib/types";
-import { ACCESS_LEVELS, ACCOUNT_TYPES, ALL_LTMS_MODULES, LOGIN_MODES, SYSTEM_OPTIONS } from "../../../lib/request-options";
+import { ACCESS_LEVELS, ACCOUNT_TYPES, ALL_LTMS_MODULES, EMPLOYMENT_STATUSES, LOGIN_MODES, SYSTEM_OPTIONS } from "../../../lib/request-options";
 import { policyRequired, visibilitySql } from "../../../lib/visibility";
 
 type RequestRow = {
   id: string; reference_no: string; applicant_name: string; employee_id: string; email: string; contact_no: string;
   agency_code:string; immediate_superior:string;
-  region_code:string;requester_position:string;requester_office:string;requester_employee_no:string;requester_contact:string;requester_email:string;resubmission_count:number;
+  region_code:string;requester_position:string;requester_office:string;requester_employee_no:string;requester_contact:string;requester_email:string;employment_status:string;resubmission_count:number;
   office: string; position: string; system_name: string; access_level: string; account_type: string;
   access_levels:string[]; change_office_requested:boolean; change_office_from:string|null; change_office_to:string|null;
   login_mode:string|null; ltms_modules:string[]; ltms_other:string|null;
@@ -22,14 +22,14 @@ type RequestRow = {
 const requestSelect = `SELECT id, reference_no, applicant_name, employee_id, email, contact_no, office, position,
  system_name, access_level, account_type, requested_start_date::text, justification, status, assigned_role,
  agency_code, immediate_superior, access_levels, change_office_requested, change_office_from, change_office_to,
- region_code,requester_position,requester_office,requester_employee_no,requester_contact,requester_email,resubmission_count,
+ region_code,requester_position,requester_office,requester_employee_no,requester_contact,requester_email,employment_status,resubmission_count,
  login_mode, ltms_modules, ltms_other,
  implementation_id, created_at, updated_at, closed_at FROM uars.access_requests`;
 
 function mapRow(row: RequestRow): AccessRequest {
   return { id: row.id, referenceNo: row.reference_no, applicantName: row.applicant_name, employeeId: row.employee_id,
     agencyCode:row.agency_code,immediateSuperior:row.immediate_superior,
-    regionCode:row.region_code,requesterPosition:row.requester_position,requesterOffice:row.requester_office,requesterEmployeeNo:row.requester_employee_no,requesterContact:row.requester_contact,requesterEmail:row.requester_email,resubmissionCount:row.resubmission_count,
+    regionCode:row.region_code,requesterPosition:row.requester_position,requesterOffice:row.requester_office,requesterEmployeeNo:row.requester_employee_no,requesterContact:row.requester_contact,requesterEmail:row.requester_email,employmentStatus:row.employment_status,resubmissionCount:row.resubmission_count,
     email: row.email, contactNo: row.contact_no, office: row.office, position: row.position, systemName: row.system_name,
     accessLevel: row.access_level, accessLevels:row.access_levels||[], accountType: row.account_type,
     changeOfficeRequested:row.change_office_requested,changeOfficeFrom:row.change_office_from,changeOfficeTo:row.change_office_to,
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
       ltmsModules=form.getAll("ltmsModules").filter((value):value is string=>typeof value==="string");
     }
   } else body = await request.json().catch(() => null) as Record<string,string> | null;
-  const required = ["applicantName","requesterPosition","requesterOffice","requesterEmployeeNo","requesterContact","requesterEmail","systemName","accountType"];
+  const required = ["applicantName","requesterPosition","requesterOffice","requesterEmployeeNo","requesterContact","requesterEmail","employmentStatus","systemName","accountType"];
   if (!body || required.some((key) => !body[key]?.trim())) return NextResponse.json({ error: "Complete every required field." }, { status: 400 });
   const [agencyCode, supervisor] = await Promise.all([
     query(`SELECT 1 FROM uars.users WHERE is_active=true AND agency_code=$1 LIMIT 1`, [user.agencyCode]),
@@ -76,6 +76,7 @@ export async function POST(request: Request) {
   if (supervisor.rowCount === 0) return NextResponse.json({ error: "No Chief of Office is enrolled for your office. Contact the System Administrator." }, { status: 400 });
   if(!SYSTEM_OPTIONS.includes(body.systemName as typeof SYSTEM_OPTIONS[number]))return NextResponse.json({error:"Select a valid system or application."},{status:400});
   if(!ACCOUNT_TYPES.includes(body.accountType as typeof ACCOUNT_TYPES[number]))return NextResponse.json({error:"Select a valid account type."},{status:400});
+  if(!EMPLOYMENT_STATUSES.includes(body.employmentStatus as typeof EMPLOYMENT_STATUSES[number]))return NextResponse.json({error:"Select a valid employment status."},{status:400});
   if(accessLevels.length===0||accessLevels.some((value)=>!ACCESS_LEVELS.includes(value as typeof ACCESS_LEVELS[number])))return NextResponse.json({error:"Select at least one valid request access level."},{status:400});
   if(body.loginMode&&!LOGIN_MODES.includes(body.loginMode as typeof LOGIN_MODES[number]))return NextResponse.json({error:"Select a valid login mode."},{status:400});
   const changeOffice=body.changeOfficeRequested==="true";
@@ -101,12 +102,12 @@ export async function POST(request: Request) {
       `INSERT INTO uars.access_requests (reference_no, requester_id, applicant_name, employee_id, email, contact_no,
        office, position, system_name, access_level, account_type, requested_start_date, justification, status, assigned_role,
        agency_code,immediate_superior,access_levels,change_office_requested,change_office_from,change_office_to,login_mode,ltms_modules,ltms_other,
-       region_code,requester_position,requester_office,requester_employee_no,requester_contact,requester_email)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,current_date,$12,'PENDING_ENDORSEMENT','HEAD_OF_OFFICE',$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
+       region_code,requester_position,requester_office,requester_employee_no,requester_contact,requester_email,employment_status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,current_date,$12,'PENDING_ENDORSEMENT','HEAD_OF_OFFICE',$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
        RETURNING id, reference_no, applicant_name, employee_id, email, contact_no, office, position, system_name,
-        access_level, account_type, requested_start_date::text, justification, status, assigned_role, implementation_id,agency_code,immediate_superior,access_levels,change_office_requested,change_office_from,change_office_to,login_mode,ltms_modules,ltms_other,region_code,requester_position,requester_office,requester_employee_no,requester_contact,requester_email,resubmission_count,
+        access_level, account_type, requested_start_date::text, justification, status, assigned_role, implementation_id,agency_code,immediate_superior,access_levels,change_office_requested,change_office_from,change_office_to,login_mode,ltms_modules,ltms_other,region_code,requester_position,requester_office,requester_employee_no,requester_contact,requester_email,employment_status,resubmission_count,
         created_at, updated_at, closed_at`,
-      [ref,user.id,body.applicantName.trim(),body.requesterEmployeeNo.trim(),body.requesterEmail.trim(),body.requesterContact.trim(),body.requesterOffice.trim(),body.requesterPosition.trim(),body.systemName,accessLevels.join(", "),body.accountType,"LTO credentials management request",user.agencyCode,supervisor.rows[0].chief_name,JSON.stringify(accessLevels),changeOffice,changeOffice?body.changeOfficeFrom.trim():null,changeOffice?body.changeOfficeTo.trim():null,body.loginMode||null,JSON.stringify(isLtms?ltmsModules:[]),body.ltmsOther?.trim()||null,user.regionCode,body.requesterPosition.trim(),body.requesterOffice.trim(),body.requesterEmployeeNo.trim(),body.requesterContact.trim(),body.requesterEmail.trim()],
+      [ref,user.id,body.applicantName.trim(),body.requesterEmployeeNo.trim(),body.requesterEmail.trim(),body.requesterContact.trim(),body.requesterOffice.trim(),body.requesterPosition.trim(),body.systemName,accessLevels.join(", "),body.accountType,"LTO credentials management request",user.agencyCode,supervisor.rows[0].chief_name,JSON.stringify(accessLevels),changeOffice,changeOffice?body.changeOfficeFrom.trim():null,changeOffice?body.changeOfficeTo.trim():null,body.loginMode||null,JSON.stringify(isLtms?ltmsModules:[]),body.ltmsOther?.trim()||null,user.regionCode,body.requesterPosition.trim(),body.requesterOffice.trim(),body.requesterEmployeeNo.trim(),body.requesterContact.trim(),body.requesterEmail.trim(),body.employmentStatus],
     );
     const row = result.rows[0];
     for (const file of attachments) {

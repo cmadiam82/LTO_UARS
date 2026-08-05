@@ -40,6 +40,7 @@ export type AccessRequest = {
   requesterEmployeeNo: string;
   requesterContact: string;
   requesterEmail: string;
+  employmentStatus: string;
   resubmissionCount: number;
   employeeId: string;
   email: string;

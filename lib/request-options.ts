@@ -10,6 +10,7 @@ export const SYSTEM_OPTIONS = [
 export const ACCESS_LEVELS = ["Evaluator","Cashier","Inspector","Assistant Chief","District Chief","Regional Office Personnel","RO Division/ Section/ Unit Chief","Regional Director","Assistant Regional Director","Central Office Personnel","CO Division/ Section/ Unit Chief","Executive Director","Assistant Secretary","Medical Stakeholder","Driving School","MAIRDS","PETC","PMVIC","Service Provider"] as const;
 export const ACCOUNT_TYPES = ["New Account","Add Role","Remove Role","Reactive User","Deactive User"] as const;
 export const LOGIN_MODES = ["Password","Fingerprint","Facial Recognition"] as const;
+export const EMPLOYMENT_STATUSES = ["Regular","Job Order","Contract of Service","LTO Stakeholder"] as const;
 
 export const LTMS_MODULE_GROUPS = [
   {name:"Drivers' Licensing System (DLS)",items:["DLS Access and Examination","Client Care Officer- Link Client","Client Care Officer Search DL"]},
