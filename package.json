@@ -1,6 +1,6 @@
 {
   "name": "lto-credentials-management",
-  "version": "1.6.1",
+  "version": "2.0.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -14,9 +14,11 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@types/qrcode": "^1.5.6",
     "drizzle-orm": "0.45.2",
     "next": "16.2.6",
     "pg": "8.16.3",
+    "qrcode": "^1.5.4",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },
@@ -32,6 +34,7 @@
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
+    "prettier": "^3.9.6",
     "react-server-dom-webpack": "19.2.6",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",

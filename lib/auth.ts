@@ -1,4 +1,9 @@
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  randomBytes,
+  scryptSync,
+  timingSafeEqual,
+} from "node:crypto";
 import { cookies } from "next/headers";
 import { query } from "./db";
 import type { AuthUser, IdentityProvider, Role } from "./types";
@@ -63,15 +68,23 @@ function toUser(row: UserRow): AuthUser {
   };
 }
 
-export async function authenticate(username: string, password: string): Promise<AuthUser | null> {
+export async function authenticate(
+  username: string,
+  password: string,
+): Promise<AuthUser | null> {
   const result = await query<UserRow>(
     `SELECT id, username, password_hash, full_name, employee_id, email, office, region_code, agency_code, position, contact_info, role, identity_provider,
-            must_change_password, is_active, false AS policy_accepted
-       FROM uars.users WHERE lower(username) = lower($1) AND identity_provider='LOCAL'`,
+            must_change_password, is_active, CASE WHEN role='DO' THEN false ELSE EXISTS(SELECT 1 FROM uars.policy_acceptances p WHERE p.user_id=u.id) END AS policy_accepted
+       FROM uars.users u WHERE lower(username) = lower($1) AND identity_provider='LOCAL'`,
     [username],
   );
   const row = result.rows[0];
-  if (!row?.is_active || !row.password_hash || !verifyPassword(password, row.password_hash)) return null;
+  if (
+    !row?.is_active ||
+    !row.password_hash ||
+    !verifyPassword(password, row.password_hash)
+  )
+    return null;
   return toUser(row);
 }
 
@@ -91,7 +104,7 @@ export async function currentUser(): Promise<AuthUser | null> {
   const result = await query<UserRow>(
     `SELECT u.id, u.username, u.password_hash, u.full_name, u.employee_id, u.email,
             u.office, u.region_code, u.agency_code, u.position, u.contact_info, u.role, u.identity_provider, u.must_change_password, u.is_active,
-            (s.policy_accepted_at IS NOT NULL) AS policy_accepted
+            CASE WHEN u.role='DO' THEN (s.policy_accepted_at IS NOT NULL) ELSE EXISTS(SELECT 1 FROM uars.policy_acceptances p WHERE p.user_id=u.id) END AS policy_accepted
        FROM uars.sessions s JOIN uars.users u ON u.id = s.user_id
       WHERE s.token_hash = $1 AND s.expires_at > now()
         AND s.last_activity_at > now() - ($2::text || ' minutes')::interval
@@ -99,26 +112,43 @@ export async function currentUser(): Promise<AuthUser | null> {
     [tokenHash(token), IDLE_TIMEOUT_MINUTES],
   );
   if (!result.rows[0]) {
-    await query(`DELETE FROM uars.sessions WHERE token_hash=$1`, [tokenHash(token)]);
+    await query(`DELETE FROM uars.sessions WHERE token_hash=$1`, [
+      tokenHash(token),
+    ]);
     return null;
   }
-  await query(`UPDATE uars.sessions SET last_activity_at=now() WHERE token_hash=$1`, [tokenHash(token)]);
+  await query(
+    `UPDATE uars.sessions SET last_activity_at=now() WHERE token_hash=$1`,
+    [tokenHash(token)],
+  );
   return toUser(result.rows[0]);
 }
 
 export async function acceptPolicyForCurrentSession() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const result = await query<{id:string}>(`UPDATE uars.sessions SET policy_accepted_at=now(),last_activity_at=now() WHERE token_hash=$1 RETURNING id`, [tokenHash(token)]);
+  const result = await query<{ id: string }>(
+    `UPDATE uars.sessions SET policy_accepted_at=now(),last_activity_at=now() WHERE token_hash=$1 RETURNING id`,
+    [tokenHash(token)],
+  );
   return result.rows[0]?.id || null;
 }
 
 export async function revokeCurrentSession() {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  if (token) await query(`DELETE FROM uars.sessions WHERE token_hash = $1`, [tokenHash(token)]);
+  if (token)
+    await query(`DELETE FROM uars.sessions WHERE token_hash = $1`, [
+      tokenHash(token),
+    ]);
 }
 
 export async function verifyUserPassword(userId: string, password: string) {
-  const result = await query<{ password_hash: string | null }>(`SELECT password_hash FROM uars.users WHERE id = $1 AND identity_provider='LOCAL'`, [userId]);
-  return !!result.rows[0]?.password_hash && verifyPassword(password, result.rows[0].password_hash);
+  const result = await query<{ password_hash: string | null }>(
+    `SELECT password_hash FROM uars.users WHERE id = $1 AND identity_provider='LOCAL'`,
+    [userId],
+  );
+  return (
+    !!result.rows[0]?.password_hash &&
+    verifyPassword(password, result.rows[0].password_hash)
+  );
 }

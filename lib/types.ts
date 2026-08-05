@@ -3,6 +3,7 @@ export const ROLES = [
   "HEAD_OF_OFFICE",
   "REGIONAL_OPERATIONS_CHIEF",
   "REGIONAL_DIRECTOR",
+  "MID_VERIFIER",
   "MID_CHIEF",
   "TECHNICAL_TEAM",
   "SYSTEM_ADMIN",
@@ -65,6 +66,7 @@ export type AccessRequest = {
   updatedAt: string;
   closedAt: string | null;
   implementationId: string | null;
+  verificationToken?: string;
   events: WorkflowEvent[];
 };
 

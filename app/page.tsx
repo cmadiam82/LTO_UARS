@@ -3,28 +3,129 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { ROLES, type AccessRequest, type AuthUser, type Role, type WorkflowEvent } from "../lib/types";
+import {
+  ROLES,
+  type AccessRequest,
+  type AuthUser,
+  type Role,
+  type WorkflowEvent,
+} from "../lib/types";
 import { roleLabels, transitions } from "../lib/workflow";
-import { ACCESS_LEVELS, ACCOUNT_TYPES, EMPLOYMENT_STATUSES, LOGIN_MODES, LTMS_MODULE_GROUPS, SYSTEM_OPTIONS } from "../lib/request-options";
+import {
+  ACCESS_LEVELS,
+  ACCOUNT_TYPES,
+  EMPLOYMENT_STATUSES,
+  LOGIN_MODES,
+  LTMS_MODULE_GROUPS,
+  SYSTEM_OPTIONS,
+} from "../lib/request-options";
 import { IDLE_TIMEOUT_MINUTES, IDLE_TIMEOUT_MS } from "../lib/security";
 
-const APP_VERSION="1.6.1";
+const APP_VERSION = "2.0.0";
 
-type Notice = { id: string; request_id: string; title: string; message: string; is_read: boolean; created_at: string };
-type Attachment = { id:string;originalName:string;contentType:string;sizeBytes:number;createdAt:string };
-type Detail = AccessRequest & { events: WorkflowEvent[]; attachments:Attachment[] };
-type AdminUser = { id:string;username:string;full_name:string;employee_id:string;email:string;office:string;office_id:string|null;region_code:string;agency_code:string;position:string;contact_info:string;role:Role;is_active:boolean;must_change_password:boolean;created_at:string };
-type RegionItem={code:string;name:string;is_active:boolean};type AgencyItem={code:string;name:string;region_code:string;region_name:string;is_active:boolean};type OfficeItem={id:string;name:string;agency_code:string;agency_name:string;region_code:string;region_name:string;is_active:boolean};type LocationsData={regions:RegionItem[];agencies:AgencyItem[];offices:OfficeItem[]};
-type OfficeChief={office_id:string;chief_name:string;office_name:string;office_is_active:boolean;agency_code:string;region_code:string;updated_at:string};
-type Setting = { key:string;value:string;description:string;updated_at:string };
-type AdminAudit = { id:string;actor_name:string;action:string;entity_type:string;entity_id:string;created_at:string };
-type AuthenticationStatus = {activeProvider:"LOCAL"|"KEYCLOAK";localAccountsEnabled:boolean;keycloak:{prepared:boolean;configured:boolean;implementationStatus:string;missingSettings:string[];issuerUrl:string;clientId:string;roleClaim:string;scopes:string}};
-type FormOption = { value:string;label:string };
+type Notice = {
+  id: string;
+  request_id: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+};
+type Attachment = {
+  id: string;
+  originalName: string;
+  contentType: string;
+  sizeBytes: number;
+  documentType: string;
+  createdAt: string;
+};
+type Detail = AccessRequest & {
+  events: WorkflowEvent[];
+  attachments: Attachment[];
+};
+type AdminUser = {
+  id: string;
+  username: string;
+  full_name: string;
+  employee_id: string;
+  email: string;
+  office: string;
+  office_id: string | null;
+  region_code: string;
+  agency_code: string;
+  position: string;
+  contact_info: string;
+  role: Role;
+  is_active: boolean;
+  must_change_password: boolean;
+  created_at: string;
+};
+type RegionItem = { code: string; name: string; is_active: boolean };
+type AgencyItem = {
+  code: string;
+  name: string;
+  region_code: string;
+  region_name: string;
+  is_active: boolean;
+};
+type OfficeItem = {
+  id: string;
+  name: string;
+  agency_code: string;
+  agency_name: string;
+  region_code: string;
+  region_name: string;
+  is_active: boolean;
+};
+type LocationsData = {
+  regions: RegionItem[];
+  agencies: AgencyItem[];
+  offices: OfficeItem[];
+};
+type OfficeChief = {
+  office_id: string;
+  chief_name: string;
+  office_name: string;
+  office_is_active: boolean;
+  agency_code: string;
+  region_code: string;
+  updated_at: string;
+};
+type Setting = {
+  key: string;
+  value: string;
+  description: string;
+  updated_at: string;
+};
+type AdminAudit = {
+  id: string;
+  actor_name: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  created_at: string;
+};
+type AuthenticationStatus = {
+  activeProvider: "LOCAL" | "KEYCLOAK";
+  localAccountsEnabled: boolean;
+  keycloak: {
+    prepared: boolean;
+    configured: boolean;
+    implementationStatus: string;
+    missingSettings: string[];
+    issuerUrl: string;
+    clientId: string;
+    roleClaim: string;
+    scopes: string;
+  };
+};
+type FormOption = { value: string; label: string };
 
 const statusLabels: Record<string, string> = {
   PENDING_ENDORSEMENT: "Awaiting Head of Office",
   PENDING_RECOMMENDATION: "Awaiting Operations Chief",
   PENDING_REGIONAL_DIRECTOR: "Awaiting Regional Director",
+  PENDING_MID_VERIFICATION: "Awaiting MID Verification",
   PENDING_MID_APPROVAL: "Awaiting MID Chief",
   PENDING_IMPLEMENTATION: "Approved · For implementation",
   CLOSED: "Closed · Implemented",
@@ -43,7 +144,14 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [selected, setSelected] = useState<Detail | null>(null);
-  const [view, setView] = useState<"workspace" | "new" | "reports" | "admin-users" | "admin-locations" | "admin-settings">("workspace");
+  const [view, setView] = useState<
+    | "workspace"
+    | "new"
+    | "reports"
+    | "admin-users"
+    | "admin-locations"
+    | "admin-settings"
+  >("workspace");
   const [notices, setNotices] = useState<Notice[]>([]);
   const [showNotices, setShowNotices] = useState(false);
   const [toast, setToast] = useState("");
@@ -63,191 +171,2900 @@ export default function Home() {
     const data = await response.json();
     const r = data.request;
     setSelected({
-      id:r.id,referenceNo:r.reference_no,applicantName:r.applicant_name,employeeId:r.employee_id,agencyCode:r.agency_code,immediateSuperior:r.immediate_superior,email:r.email,contactNo:r.contact_no,
-      office:r.office,position:r.position,systemName:r.system_name,accessLevel:r.access_level,accessLevels:r.access_levels||[],accountType:r.account_type,
-      changeOfficeRequested:r.change_office_requested,changeOfficeFrom:r.change_office_from,changeOfficeTo:r.change_office_to,loginMode:r.login_mode,ltmsModules:r.ltms_modules||[],ltmsOther:r.ltms_other,regionCode:r.region_code,requesterPosition:r.requester_position,requesterOffice:r.requester_office,requesterEmployeeNo:r.requester_employee_no,requesterContact:r.requester_contact,requesterEmail:r.requester_email,employmentStatus:r.employment_status,resubmissionCount:r.resubmission_count||0,
-      requestedStartDate:r.requested_start_date,justification:r.justification,status:r.status,currentRole:r.assigned_role,
-      implementationId:r.implementation_id,createdAt:r.created_at,updatedAt:r.updated_at,closedAt:r.closed_at,
-      events:data.events.map((e: Record<string,string>) => ({id:e.id,action:e.action,fromStatus:e.from_status,toStatus:e.to_status,notes:e.notes,actorName:e.actor_name,actorRole:e.actor_role,createdAt:e.created_at})),
-      attachments:(data.attachments||[]).map((a:Record<string,string>)=>({id:a.id,originalName:a.original_name,contentType:a.content_type,sizeBytes:Number(a.size_bytes),createdAt:a.created_at})),
+      id: r.id,
+      referenceNo: r.reference_no,
+      applicantName: r.applicant_name,
+      employeeId: r.employee_id,
+      agencyCode: r.agency_code,
+      immediateSuperior: r.immediate_superior,
+      email: r.email,
+      contactNo: r.contact_no,
+      office: r.office,
+      position: r.position,
+      systemName: r.system_name,
+      accessLevel: r.access_level,
+      accessLevels: r.access_levels || [],
+      accountType: r.account_type,
+      changeOfficeRequested: r.change_office_requested,
+      changeOfficeFrom: r.change_office_from,
+      changeOfficeTo: r.change_office_to,
+      loginMode: r.login_mode,
+      ltmsModules: r.ltms_modules || [],
+      ltmsOther: r.ltms_other,
+      regionCode: r.region_code,
+      requesterPosition: r.requester_position,
+      requesterOffice: r.requester_office,
+      requesterEmployeeNo: r.requester_employee_no,
+      requesterContact: r.requester_contact,
+      requesterEmail: r.requester_email,
+      employmentStatus: r.employment_status,
+      resubmissionCount: r.resubmission_count || 0,
+      requestedStartDate: r.requested_start_date,
+      justification: r.justification,
+      status: r.status,
+      currentRole: r.assigned_role,
+      implementationId: r.implementation_id,
+      verificationToken: r.verification_token,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      closedAt: r.closed_at,
+      events: data.events.map((e: Record<string, string>) => ({
+        id: e.id,
+        action: e.action,
+        fromStatus: e.from_status,
+        toStatus: e.to_status,
+        notes: e.notes,
+        actorName: e.actor_name,
+        actorRole: e.actor_role,
+        createdAt: e.created_at,
+      })),
+      attachments: (data.attachments || []).map(
+        (a: Record<string, string>) => ({
+          id: a.id,
+          originalName: a.original_name,
+          contentType: a.content_type,
+          sizeBytes: Number(a.size_bytes),
+          documentType: a.document_type,
+          createdAt: a.created_at,
+        }),
+      ),
     });
   }, []);
 
   useEffect(() => {
     fetch("/api/session").then(async (response) => {
-      if (response.ok) { const nextUser=(await response.json()).user; setUser(nextUser); if(nextUser.role==="SYSTEM_ADMIN") setView("admin-users"); }
+      if (response.ok) {
+        const nextUser = (await response.json()).user;
+        setUser(nextUser);
+        if (nextUser.role === "SYSTEM_ADMIN") setView("admin-users");
+      }
       setLoading(false);
     });
   }, []);
-  useEffect(()=>{let checking=false;const check=async()=>{if(checking)return;checking=true;try{const r=await fetch(`/api/version?t=${Date.now()}`,{cache:"no-store"});const x=await r.json();if(x.version!==APP_VERSION)window.location.replace(`/?version=${encodeURIComponent(x.version)}`);}catch{}finally{checking=false;}};void check();const timer=window.setInterval(check,60_000);return()=>window.clearInterval(timer);},[]);
+  useEffect(() => {
+    let checking = false;
+    const check = async () => {
+      if (checking) return;
+      checking = true;
+      try {
+        const r = await fetch(`/api/version?t=${Date.now()}`, {
+          cache: "no-store",
+        });
+        const x = await r.json();
+        if (x.version !== APP_VERSION)
+          window.location.replace(`/?version=${encodeURIComponent(x.version)}`);
+      } catch {
+      } finally {
+        checking = false;
+      }
+    };
+    void check();
+    const timer = window.setInterval(check, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   // Data is refreshed whenever the authenticated identity changes.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { if (user && (user.role!=="DO"||user.policyAccepted) && !user.mustChangePassword) { loadRequests(); loadNotices(); } }, [user, loadRequests, loadNotices]);
-  useEffect(()=>{if(!user||(user.role==="DO"&&!user.policyAccepted)||user.mustChangePassword)return;const refresh=()=>{if(document.visibilityState==="visible")void loadNotices();};const timer=window.setInterval(refresh,30_000);document.addEventListener("visibilitychange",refresh);return()=>{window.clearInterval(timer);document.removeEventListener("visibilitychange",refresh);};},[user,loadNotices]);
+  useEffect(() => {
+    if (user && user.policyAccepted && !user.mustChangePassword) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      loadRequests();
+      loadNotices();
+    }
+  }, [user, loadRequests, loadNotices]);
+  useEffect(() => {
+    if (!user || !user.policyAccepted || user.mustChangePassword) return;
+    const refresh = () => {
+      if (document.visibilityState === "visible") void loadNotices();
+    };
+    const timer = window.setInterval(refresh, 30_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [user, loadNotices]);
   useEffect(() => {
     if (!user) return;
-    let timer:number; let lastHeartbeat=Date.now(); let ended=false;
-    const expire=()=>{if(ended)return;ended=true;void fetch("/api/auth/logout",{method:"POST",keepalive:true});setUser(null);setSelected(null);setIdleLogout(true);};
-    const reset=()=>{if(ended)return;window.clearTimeout(timer);timer=window.setTimeout(expire,IDLE_TIMEOUT_MS);if(Date.now()-lastHeartbeat>60_000){lastHeartbeat=Date.now();void fetch("/api/session").then(r=>{if(r.status===401)expire();});}};
-    const events:(keyof WindowEventMap)[]=["mousedown","mousemove","keydown","scroll","touchstart"];
-    events.forEach(event=>window.addEventListener(event,reset,{passive:true}));reset();
-    return()=>{ended=true;window.clearTimeout(timer);events.forEach(event=>window.removeEventListener(event,reset));};
-  },[user]);
+    let timer: number;
+    let lastHeartbeat = Date.now();
+    let ended = false;
+    const expire = () => {
+      if (ended) return;
+      ended = true;
+      void fetch("/api/auth/logout", { method: "POST", keepalive: true });
+      setUser(null);
+      setSelected(null);
+      setIdleLogout(true);
+    };
+    const reset = () => {
+      if (ended) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(expire, IDLE_TIMEOUT_MS);
+      if (Date.now() - lastHeartbeat > 60_000) {
+        lastHeartbeat = Date.now();
+        void fetch("/api/session").then((r) => {
+          if (r.status === 401) expire();
+        });
+      }
+    };
+    const events: (keyof WindowEventMap)[] = [
+      "mousedown",
+      "mousemove",
+      "keydown",
+      "scroll",
+      "touchstart",
+    ];
+    events.forEach((event) =>
+      window.addEventListener(event, reset, { passive: true }),
+    );
+    reset();
+    return () => {
+      ended = true;
+      window.clearTimeout(timer);
+      events.forEach((event) => window.removeEventListener(event, reset));
+    };
+  }, [user]);
 
-  function flash(message: string) { setToast(message); window.setTimeout(() => setToast(""), 4000); }
-  async function logout() { await fetch("/api/auth/logout", { method: "POST" }); window.location.replace(`/?version=${APP_VERSION}`); }
+  function flash(message: string) {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 4000);
+  }
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.replace(`/?version=${APP_VERSION}`);
+  }
 
-  if (loading) return <div className="screen-loader"><AgencyLogos/><p>Opening secure workspace…</p></div>;
-  if (!user) return <Login inactivityNotice={idleLogout} onDismissNotice={()=>setIdleLogout(false)} onLogin={(nextUser)=>{setIdleLogout(false);setUser(nextUser);setView(nextUser.role==="SYSTEM_ADMIN"?"admin-users":"workspace");}} />;
-  if (user.mustChangePassword && user.identityProvider === "LOCAL") return <ChangePassword onDone={() => setUser({ ...user, mustChangePassword: false })} />;
-  if (user.role === "DO" && !user.policyAccepted) return <PolicyAgreement user={user} onAccepted={() => setUser({...user,policyAccepted:true})} onLogout={logout}/>;
+  if (loading)
+    return (
+      <div className="screen-loader">
+        <AgencyLogos />
+        <p>Opening secure workspace…</p>
+      </div>
+    );
+  if (!user)
+    return (
+      <Login
+        inactivityNotice={idleLogout}
+        onDismissNotice={() => setIdleLogout(false)}
+        onLogin={(nextUser) => {
+          setIdleLogout(false);
+          setUser(nextUser);
+          setView(
+            nextUser.role === "SYSTEM_ADMIN" ? "admin-users" : "workspace",
+          );
+        }}
+      />
+    );
+  if (user.mustChangePassword && user.identityProvider === "LOCAL")
+    return (
+      <ChangePassword
+        onDone={() => setUser({ ...user, mustChangePassword: false })}
+      />
+    );
+  if (!user.policyAccepted)
+    return (
+      <PolicyAgreement
+        user={user}
+        onAccepted={() => setUser({ ...user, policyAccepted: true })}
+        onLogout={logout}
+      />
+    );
 
   const unread = notices.filter((n) => !n.is_read).length;
   return (
     <main className="app-shell">
-      {toast && <div className="toast"><span>✓</span>{toast}</div>}
+      {toast && (
+        <div className="toast">
+          <span>✓</span>
+          {toast}
+        </div>
+      )}
       <aside className="sidebar">
-        <div className="brand"><AgencyLogos compact/><div><strong>LTOCM</strong><span>LTO Credentials Management · v{APP_VERSION}</span></div></div>
+        <div className="brand">
+          <AgencyLogos compact />
+          <div>
+            <strong>LTOCM</strong>
+            <span>LTO Credentials Management · v{APP_VERSION}</span>
+          </div>
+        </div>
         <nav aria-label="Main navigation">
-          <button className={`nav-item ${view === "workspace" ? "active" : ""}`} onClick={() => { setView("workspace"); setSelected(null); }}><span>▦</span> Workspace</button>
-          {user.role === "DO" && <button className={`nav-item ${view === "new" ? "active" : ""}`} onClick={() => setView("new")}><span>＋</span> New application</button>}
-          {["REGIONAL_OPERATIONS_CHIEF","REGIONAL_DIRECTOR","MID_CHIEF","TECHNICAL_TEAM","SYSTEM_ADMIN"].includes(user.role)&&<button className={`nav-item ${view === "reports" ? "active" : ""}`} onClick={()=>{setView("reports");setSelected(null);}}><span>▤</span> Reports</button>}
-          {user.role === "SYSTEM_ADMIN" && <><button className={`nav-item ${view === "admin-users" ? "active" : ""}`} onClick={() => {setView("admin-users");setSelected(null);}}><span>♙</span> User management</button><button className={`nav-item ${view === "admin-locations" ? "active" : ""}`} onClick={() => {setView("admin-locations");setSelected(null);}}><span>⌖</span> Regions &amp; Offices</button><button className={`nav-item ${view === "admin-settings" ? "active" : ""}`} onClick={() => {setView("admin-settings");setSelected(null);}}><span>⚙</span> System settings</button></>}
-          <button className="nav-item" onClick={() => setShowNotices(true)}><span><BellIcon/></span> Notifications {unread > 0 && <em>{unread}</em>}</button>
-          <button className="nav-item" onClick={() => { setView("workspace"); setSelected(null); }}><span>✓</span> Request history</button>
+          <button
+            className={`nav-item ${view === "workspace" ? "active" : ""}`}
+            onClick={() => {
+              setView("workspace");
+              setSelected(null);
+            }}
+          >
+            <span>▦</span> Workspace
+          </button>
+          {user.role === "DO" && (
+            <button
+              className={`nav-item ${view === "new" ? "active" : ""}`}
+              onClick={() => setView("new")}
+            >
+              <span>＋</span> New application
+            </button>
+          )}
+          {[
+            "REGIONAL_OPERATIONS_CHIEF",
+            "REGIONAL_DIRECTOR",
+            "MID_VERIFIER",
+            "MID_CHIEF",
+            "TECHNICAL_TEAM",
+            "SYSTEM_ADMIN",
+          ].includes(user.role) && (
+            <button
+              className={`nav-item ${view === "reports" ? "active" : ""}`}
+              onClick={() => {
+                setView("reports");
+                setSelected(null);
+              }}
+            >
+              <span>▤</span> Reports
+            </button>
+          )}
+          {user.role === "SYSTEM_ADMIN" && (
+            <>
+              <button
+                className={`nav-item ${view === "admin-users" ? "active" : ""}`}
+                onClick={() => {
+                  setView("admin-users");
+                  setSelected(null);
+                }}
+              >
+                <span>♙</span> User management
+              </button>
+              <button
+                className={`nav-item ${view === "admin-locations" ? "active" : ""}`}
+                onClick={() => {
+                  setView("admin-locations");
+                  setSelected(null);
+                }}
+              >
+                <span>⌖</span> Regions &amp; Offices
+              </button>
+              <button
+                className={`nav-item ${view === "admin-settings" ? "active" : ""}`}
+                onClick={() => {
+                  setView("admin-settings");
+                  setSelected(null);
+                }}
+              >
+                <span>⚙</span> System settings
+              </button>
+            </>
+          )}
+          <button className="nav-item" onClick={() => setShowNotices(true)}>
+            <span>
+              <BellIcon />
+            </span>{" "}
+            Notifications {unread > 0 && <em>{unread}</em>}
+          </button>
+          <button
+            className="nav-item"
+            onClick={() => {
+              setView("workspace");
+              setSelected(null);
+            }}
+          >
+            <span>✓</span> Request history
+          </button>
         </nav>
-        <div className="secure-box"><span>◆</span><div><strong>Protected workspace</strong><p>Role checks and actions are enforced and audit logged.</p></div></div>
-        <div className="sidebar-user"><div className="avatar">{initials(user.fullName)}</div><div><strong>{user.fullName}</strong><span>{roleLabels[user.role]}</span></div><button onClick={logout} aria-label="Sign out">↪</button></div>
+        <div className="secure-box">
+          <span>◆</span>
+          <div>
+            <strong>Protected workspace</strong>
+            <p>Role checks and actions are enforced and audit logged.</p>
+          </div>
+        </div>
+        <div className="sidebar-user">
+          <div className="avatar">{initials(user.fullName)}</div>
+          <div>
+            <strong>{user.fullName}</strong>
+            <span>{roleLabels[user.role]}</span>
+          </div>
+          <button onClick={logout} aria-label="Sign out">
+            ↪
+          </button>
+        </div>
       </aside>
 
       <section className="workspace">
         <header className="topbar">
-          <div><h1>{view === "new" ? "New credentials request" : view === "reports" ? "Operational reports" : view === "admin-users" ? "User management" : view === "admin-locations" ? "Regions, agencies, and offices" : view === "admin-settings" ? "System settings" : selected ? selected.referenceNo : "Approval workspace"}</h1><p>{view === "new" ? "Submit an LTO credentials request for endorsement" : `Signed in as ${roleLabels[user.role]}`}</p></div>
-          <div className="top-actions"><span className="role-badge">{roleLabels[user.role]}</span><button className="icon-btn" onClick={() => setShowNotices(true)} aria-label={`Notifications${unread?` (${unread} unread)`:""}`}><BellIcon/>{unread > 0 && <i />}</button></div>
+          <div>
+            <h1>
+              {view === "new"
+                ? "New credentials request"
+                : view === "reports"
+                  ? "Operational reports"
+                  : view === "admin-users"
+                    ? "User management"
+                    : view === "admin-locations"
+                      ? "Regions, agencies, and offices"
+                      : view === "admin-settings"
+                        ? "System settings"
+                        : selected
+                          ? selected.referenceNo
+                          : "Approval workspace"}
+            </h1>
+            <p>
+              {view === "new"
+                ? "Submit an LTO credentials request for endorsement"
+                : `Signed in as ${roleLabels[user.role]}`}
+            </p>
+          </div>
+          <div className="top-actions">
+            <span className="role-badge">{roleLabels[user.role]}</span>
+            <button
+              className="icon-btn"
+              onClick={() => setShowNotices(true)}
+              aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
+            >
+              <BellIcon />
+              {unread > 0 && <i />}
+            </button>
+          </div>
         </header>
         <div className="content">
-          {view === "admin-users" ? <UserManagement currentUser={user} flash={flash}/> : view === "admin-locations" ? <LocationManagement flash={flash}/> : view === "admin-settings" ? <SystemSettings flash={flash}/> : view === "reports" ? <Reports requests={requests} user={user} onSelect={loadDetail}/> : view === "new" ? <ApplicationForm user={user} onCreated={async (request) => { await loadRequests(); setView("workspace"); await loadDetail(request.id); flash(`${request.referenceNo} submitted for endorsement.`); }} /> :
-            selected ? <><RequestDetail request={selected} user={user} onBack={() => setSelected(null)} onAction={async () => { await loadRequests(); await loadDetail(selected.id); await loadNotices(); flash("Action completed and the next office was notified."); }} /><AttachmentsPanel request={selected}/></> :
-            <WorkspaceHome user={user} requests={requests} onSelect={loadDetail} onNew={() => setView("new")} />}
+          {view === "admin-users" ? (
+            <UserManagement currentUser={user} flash={flash} />
+          ) : view === "admin-locations" ? (
+            <LocationManagement flash={flash} />
+          ) : view === "admin-settings" ? (
+            <SystemSettings flash={flash} />
+          ) : view === "reports" ? (
+            <Reports requests={requests} user={user} onSelect={loadDetail} />
+          ) : view === "new" ? (
+            <ApplicationForm
+              user={user}
+              onCreated={async (request) => {
+                await loadRequests();
+                setView("workspace");
+                await loadDetail(request.id);
+                flash(`${request.referenceNo} submitted for endorsement.`);
+              }}
+            />
+          ) : selected ? (
+            <>
+              <RequestDetail
+                request={selected}
+                user={user}
+                onBack={() => setSelected(null)}
+                onAction={async () => {
+                  await loadRequests();
+                  await loadDetail(selected.id);
+                  await loadNotices();
+                  flash("Action completed and the next office was notified.");
+                }}
+              />
+              <AttachmentsPanel request={selected} />
+            </>
+          ) : (
+            <WorkspaceHome
+              user={user}
+              requests={requests}
+              onSelect={loadDetail}
+              onNew={() => setView("new")}
+            />
+          )}
         </div>
       </section>
-      {showNotices && <Notifications notices={notices} onClose={async () => { setShowNotices(false); await fetch("/api/notifications", { method: "POST" }); await loadNotices(); }} onOpen={async (noticeId,requestId) => { await fetch("/api/notifications",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({notificationId:noticeId})});setShowNotices(false);setView("workspace");await loadDetail(requestId);await loadNotices(); }} />}
+      {showNotices && (
+        <Notifications
+          notices={notices}
+          onClose={async () => {
+            setShowNotices(false);
+            await fetch("/api/notifications", { method: "POST" });
+            await loadNotices();
+          }}
+          onOpen={async (noticeId, requestId) => {
+            await fetch("/api/notifications", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ notificationId: noticeId }),
+            });
+            setShowNotices(false);
+            setView("workspace");
+            await loadDetail(requestId);
+            await loadNotices();
+          }}
+        />
+      )}
     </main>
   );
 }
 
-function UserManagement({currentUser,flash}:{currentUser:AuthUser;flash:(message:string)=>void}){
-  const [users,setUsers]=useState<AdminUser[]>([]);const [locations,setLocations]=useState<LocationsData>({regions:[],agencies:[],offices:[]});const [error,setError]=useState("");const [secret,setSecret]=useState<{username:string;password:string}|null>(null);const [deleteTarget,setDeleteTarget]=useState<AdminUser|null>(null);
-  const load=useCallback(async()=>{const [r,l]=await Promise.all([fetch("/api/admin/users"),fetch("/api/admin/locations")]);const [x,y]=await Promise.all([r.json(),l.json()]);if(r.ok&&l.ok){setUsers(x.users);setLocations(y);}else setError(x.error||y.error);},[]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(()=>{load();},[load]);
-  async function create(e:FormEvent<HTMLFormElement>){e.preventDefault();setError("");const form=e.currentTarget;const f=new FormData(form);const body=Object.fromEntries(f);const r=await fetch("/api/admin/users",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const x=await r.json();if(!r.ok)return setError(x.error);setSecret({username:x.user.username,password:x.temporaryPassword});form.reset();await load();flash("User account created.");}
-  async function update(id:string,body:object){setError("");const r=await fetch(`/api/admin/users/${id}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const x=await r.json();if(!r.ok)return setError(x.error);if(x.temporaryPassword){const u=users.find((item)=>item.id===id);setSecret({username:u?.username||"user",password:x.temporaryPassword});}await load();flash(x.temporaryPassword?"Temporary password generated.":"User access updated.");}
-  async function remove(){if(!deleteTarget)return;setError("");const r=await fetch(`/api/admin/users/${deleteTarget.id}`,{method:"DELETE"});const x=await r.json();if(!r.ok){setDeleteTarget(null);return setError(x.error);}setDeleteTarget(null);await load();flash("User account permanently deleted.");}
-  const activeOffices=locations.offices.filter(o=>o.is_active&&locations.agencies.find(a=>a.code===o.agency_code)?.is_active&&locations.regions.find(r=>r.code===o.region_code)?.is_active);
-  return <><section className="workspace-welcome"><div><p className="eyebrow">SYSTEM ADMINISTRATION</p><h2>Local LTOCM accounts</h2><p>Create accounts, assign managed offices, suspend access, and reset passwords.</p></div></section>{error&&<div className="form-error">{error}</div>}<form className="card admin-create" onSubmit={create}><div className="list-heading"><div><h3>Create user account</h3><p>Region and agency are derived from the selected office.</p></div><button className="new-request">Create account</button></div><div className="form-grid"><Field name="username" label="Username"/><Field name="fullName" label="Full name"/><Field name="employeeId" label="Employee Number"/><Field name="email" label="Official email" type="email"/><label><span>Managed Office</span><select name="officeId" required><option value="">Select office</option>{activeOffices.map(o=><option key={o.id} value={o.id}>{o.region_code} · {o.agency_code} · {o.name}</option>)}</select></label><Field name="position" label="Position / Designation"/><Field name="contactInfo" label="Contact Information"/><label><span>System role</span><select name="role" required>{ROLES.map(r=><option key={r} value={r}>{roleLabels[r]}</option>)}</select></label></div></form><section className="card request-list admin-list"><div className="list-heading"><div><h3>User directory and GAOR</h3><p>Assign accounts through the managed office hierarchy.</p></div><span>{users.length} accounts</span></div><div className="table-wrap"><table><thead><tr><th>User</th><th>Managed Office / GAOR</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody>{users.map(u=><tr key={u.id}><td><strong>{u.full_name}</strong><small>{u.username} · {u.employee_id}</small></td><td><select value={u.office_id||""} onChange={e=>update(u.id,{officeId:e.target.value})}><option value="">Legacy: {u.region_code} · {u.agency_code} · {u.office}</option>{activeOffices.map(o=><option key={o.id} value={o.id}>{o.region_code} · {o.agency_code} · {o.name}</option>)}</select></td><td><select value={u.role} disabled={u.id===currentUser.id} onChange={e=>update(u.id,{role:e.target.value})}>{ROLES.map(r=><option key={r} value={r}>{roleLabels[r]}</option>)}</select></td><td><span className={`status-pill ${u.is_active?"done":""}`}><i/>{u.is_active?u.must_change_password?"Password change due":"Active":"Suspended"}</span></td><td><div className="admin-actions"><button onClick={()=>update(u.id,{action:"RESET_PASSWORD"})}>Reset Password</button><button disabled={u.id===currentUser.id} onClick={()=>update(u.id,{isActive:!u.is_active})}>{u.is_active?"Suspend":"Activate"}</button><button className="danger" disabled={u.id===currentUser.id} onClick={()=>setDeleteTarget(u)}>Delete user</button></div></td></tr>)}</tbody></table></div></section>{secret&&<div className="modal-backdrop"><section className="modal-card credential-card"><div className="login-seal">◆</div><h2>Temporary credential</h2><p>Copy this now. The password will not be shown again.</p><div className="credential"><span>Username</span><strong>{secret.username}</strong><span>Temporary password</span><code>{secret.password}</code></div><button className="primary-action" onClick={()=>setSecret(null)}>I have saved it</button></section></div>}{deleteTarget&&<div className="modal-backdrop"><section className="modal-card credential-card"><div className="login-seal danger-seal">!</div><h2>Delete user account?</h2><p><strong>{deleteTarget.full_name}</strong> ({deleteTarget.username}) will permanently lose access. This cannot be undone.</p><div className="confirm-actions"><button onClick={()=>setDeleteTarget(null)}>Cancel</button><button className="danger-button" onClick={remove}>Delete user permanently</button></div></section></div>}</>;
-}
-
-function LocationManagement({flash}:{flash:(message:string)=>void}){
-  const [data,setData]=useState<LocationsData>({regions:[],agencies:[],offices:[]});const [chiefs,setChiefs]=useState<OfficeChief[]>([]);const [error,setError]=useState("");
-  const load=useCallback(async()=>{const [r,c]=await Promise.all([fetch("/api/admin/locations"),fetch("/api/admin/chiefs")]);const [x,y]=await Promise.all([r.json(),c.json()]);if(r.ok&&c.ok){setData(x);setChiefs(y.chiefs);}else setError(x.error||y.error);},[]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(()=>{load();},[load]);
-  async function create(e:FormEvent<HTMLFormElement>,entity:"REGION"|"AGENCY"|"OFFICE"){e.preventDefault();setError("");const form=e.currentTarget;const body={entity,...Object.fromEntries(new FormData(form))};const r=await fetch("/api/admin/locations",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const x=await r.json();if(!r.ok)return setError(x.error);form.reset();await load();flash(`${entity.toLowerCase()} created.`);}
-  async function change(entity:string,id:string,name:string,isActive:boolean){setError("");const r=await fetch("/api/admin/locations",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({entity,id,name,isActive})});const x=await r.json();if(!r.ok)return setError(x.error);await load();flash("Location updated.");}
-  async function remove(entity:string,id:string){setError("");const r=await fetch("/api/admin/locations",{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({entity,id})});const x=await r.json();if(!r.ok)return setError(x.error);await load();flash("Location deleted.");}
-  async function saveChief(e:FormEvent<HTMLFormElement>){e.preventDefault();setError("");const form=e.currentTarget;const body=Object.fromEntries(new FormData(form));const r=await fetch("/api/admin/chiefs",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const x=await r.json();if(!r.ok)return setError(x.error);form.reset();await load();flash("Chief of Office saved.");}
-  async function removeChief(officeId:string){setError("");const r=await fetch("/api/admin/chiefs",{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({officeId})});const x=await r.json();if(!r.ok)return setError(x.error);await load();flash("Chief of Office assignment removed.");}
-  const activeOffices=data.offices.filter(o=>o.is_active&&data.agencies.find(a=>a.code===o.agency_code)?.is_active&&data.regions.find(r=>r.code===o.region_code)?.is_active);
-  return <><section className="workspace-welcome"><div><p className="eyebrow">LOCATION MASTER DATA</p><h2>Regions, agency codes, offices, and chiefs</h2><p>Accounts and Chief of Office assignments use the same managed office hierarchy.</p></div></section>{error&&<div className="form-error">{error}</div>}<div className="location-grid"><section className="card location-card"><div className="list-heading"><div><h3>Regions</h3><p>Top-level GAOR</p></div><span>{data.regions.length}</span></div><form onSubmit={e=>create(e,"REGION")}><input name="code" placeholder="Code (e.g. NCR)" required/><input name="name" placeholder="Region name" required/><button>Add region</button></form><div className="location-list">{data.regions.map(r=><div key={r.code}><span><strong>{r.name}</strong><small>{r.code}</small></span><button onClick={()=>change("REGION",r.code,r.name,!r.is_active)}>{r.is_active?"Deactivate":"Activate"}</button><button className="danger" onClick={()=>remove("REGION",r.code)}>Delete</button></div>)}</div></section><section className="card location-card"><div className="list-heading"><div><h3>Agency Codes</h3><p>Belong to a region</p></div><span>{data.agencies.length}</span></div><form onSubmit={e=>create(e,"AGENCY")}><select name="regionCode" required><option value="">Select region</option>{data.regions.filter(r=>r.is_active).map(r=><option key={r.code} value={r.code}>{r.code} · {r.name}</option>)}</select><input name="code" placeholder="Agency code" required/><input name="name" placeholder="Agency name" required/><button>Add agency</button></form><div className="location-list">{data.agencies.map(a=><div key={a.code}><span><strong>{a.name}</strong><small>{a.region_code} · {a.code}</small></span><button onClick={()=>change("AGENCY",a.code,a.name,!a.is_active)}>{a.is_active?"Deactivate":"Activate"}</button><button className="danger" onClick={()=>remove("AGENCY",a.code)}>Delete</button></div>)}</div></section><section className="card location-card"><div className="list-heading"><div><h3>Offices</h3><p>Assigned to accounts</p></div><span>{data.offices.length}</span></div><form onSubmit={e=>create(e,"OFFICE")}><select name="agencyCode" required><option value="">Select agency</option>{data.agencies.filter(a=>a.is_active).map(a=><option key={a.code} value={a.code}>{a.region_code} · {a.code}</option>)}</select><input name="name" placeholder="Office name" required/><button>Add office</button></form><div className="location-list">{data.offices.map(o=><div key={o.id}><span><strong>{o.name}</strong><small>{o.region_code} · {o.agency_code}</small></span><button onClick={()=>change("OFFICE",o.id,o.name,!o.is_active)}>{o.is_active?"Deactivate":"Activate"}</button><button className="danger" onClick={()=>remove("OFFICE",o.id)}>Delete</button></div>)}</div></section><section className="card location-card"><div className="list-heading"><div><h3>Chief of Office</h3><p>Linked to a managed office</p></div><span>{chiefs.length}</span></div><form onSubmit={saveChief}><select name="officeId" required><option value="">Name of Office</option>{activeOffices.map(o=><option key={o.id} value={o.id}>{o.region_code} · {o.agency_code} · {o.name}</option>)}</select><input name="chiefName" placeholder="Name of Chief of Office" required/><button>Save Chief of Office</button></form><div className="location-list">{chiefs.map(c=><div key={c.office_id}><span><strong>{c.chief_name}</strong><small>{c.region_code} · {c.agency_code} · {c.office_name}</small></span><button className="danger" onClick={()=>removeChief(c.office_id)}>Remove</button></div>)}</div></section></div></>;
-}
-
-function SystemSettings({flash}:{flash:(message:string)=>void}){
-  const [settings,setSettings]=useState<Setting[]>([]);const [audit,setAudit]=useState<AdminAudit[]>([]);const [authentication,setAuthentication]=useState<AuthenticationStatus|null>(null);const [error,setError]=useState("");
-  const load=useCallback(async()=>{const r=await fetch("/api/admin/settings");const x=await r.json();if(r.ok){setSettings(x.settings);setAudit(x.audit);setAuthentication(x.authentication);}else setError(x.error);},[]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(()=>{load();},[load]);
-  async function save(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const values=Object.fromEntries(settings.map((s)=>[s.key,String(f.get(s.key)||"")]));const r=await fetch("/api/admin/settings",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({settings:values})});const x=await r.json();if(!r.ok)return setError(x.error);await load();flash("System settings saved and audit logged.");}
-  return <><section className="workspace-welcome"><div><p className="eyebrow">SYSTEM ADMINISTRATION</p><h2>System-wide settings</h2><p>Configuration changes are restricted to system administrators.</p></div></section>{error&&<div className="form-error">{error}</div>}{authentication&&<section className="card auth-readiness"><div><span className="auth-icon">◆</span><div><p>AUTHENTICATION PROVIDER</p><h3>{authentication.activeProvider === "LOCAL" ? "Local LTOCM accounts active" : "Keycloak requested"}</h3><small>Keycloak integration is prepared but deliberately not enabled.</small></div></div><span className={`status-pill ${authentication.keycloak.configured?"done":"pending"}`}><i/>{authentication.keycloak.configured?"Configuration ready":"Configuration pending"}</span><dl><div><dt>Issuer</dt><dd>{authentication.keycloak.issuerUrl||"Not configured"}</dd></div><div><dt>Client ID</dt><dd>{authentication.keycloak.clientId||"Not configured"}</dd></div><div><dt>Role claim</dt><dd>{authentication.keycloak.roleClaim}</dd></div><div><dt>Scopes</dt><dd>{authentication.keycloak.scopes}</dd></div></dl>{authentication.keycloak.missingSettings.length>0&&<p className="auth-missing">Missing: {authentication.keycloak.missingSettings.join(", ")}</p>}</section>}<form className="card settings-form" onSubmit={save}>{settings.map((s)=><label key={s.key}><span>{s.key.replaceAll("_"," ")}</span><input name={s.key} defaultValue={s.value}/><small>{s.description}</small></label>)}<button className="primary-action">Save all settings</button></form><section className="card request-list audit-list"><div className="list-heading"><div><h3>Administration audit trail</h3><p>Most recent user and configuration changes.</p></div><span>{audit.length} events</span></div><div className="table-wrap"><table><thead><tr><th>Action</th><th>Administrator</th><th>Target</th><th>Date</th></tr></thead><tbody>{audit.map((a)=><tr key={a.id}><td><strong>{a.action.replaceAll("_"," ")}</strong></td><td>{a.actor_name}</td><td>{a.entity_type} · {a.entity_id}</td><td>{formatDateTime(a.created_at)}</td></tr>)}</tbody></table></div></section></>;
-}
-
-function Login({ onLogin,inactivityNotice,onDismissNotice }: { onLogin: (user: AuthUser) => void;inactivityNotice:boolean;onDismissNotice:()=>void }) {
-  const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setBusy(true); setError("");
-    const data = new FormData(event.currentTarget);
-    const response = await fetch("/api/auth/login", { method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({username:data.get("username"),password:data.get("password")}) });
-    const result = await response.json(); setBusy(false); if (!response.ok) return setError(result.error); onLogin(result.user);
+function UserManagement({
+  currentUser,
+  flash,
+}: {
+  currentUser: AuthUser;
+  flash: (message: string) => void;
+}) {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [locations, setLocations] = useState<LocationsData>({
+    regions: [],
+    agencies: [],
+    offices: [],
+  });
+  const [error, setError] = useState("");
+  const [secret, setSecret] = useState<{
+    username: string;
+    password: string;
+  } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
+  const [editTarget, setEditTarget] = useState<AdminUser | null>(null);
+  const load = useCallback(async () => {
+    const [r, l] = await Promise.all([
+      fetch("/api/admin/users"),
+      fetch("/api/admin/locations"),
+    ]);
+    const [x, y] = await Promise.all([r.json(), l.json()]);
+    if (r.ok && l.ok) {
+      setUsers(x.users);
+      setLocations(y);
+    } else setError(x.error || y.error);
+  }, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+  }, [load]);
+  async function create(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+    const form = e.currentTarget;
+    const f = new FormData(form);
+    const body = Object.fromEntries(f);
+    const r = await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const x = await r.json();
+    if (!r.ok) return setError(x.error);
+    setSecret({ username: x.user.username, password: x.temporaryPassword });
+    form.reset();
+    await load();
+    flash("User account created.");
   }
-  return <main className="login-page"><section className="login-story"><div className="brand login-brand"><AgencyLogos/><div><strong>LTOCM</strong><span>LTO CREDENTIALS MANAGEMENT</span></div></div><div><p className="eyebrow">SECURE CREDENTIALS GOVERNANCE</p><h1>Every credential request.<br/>Clear, accountable, complete.</h1><p>One protected workflow from application and endorsement to approval, implementation, and automatic closure.</p></div><div className="login-steps"><span>01 Submit</span><span>02 Review</span><span>03 Approve</span><span>04 Implement</span></div></section><section className="login-panel"><form onSubmit={submit}><div className="login-mid-logo"><img src="/mid-logo.png" width="288" height="141" alt="LTO Management Information Division (MID)"/></div><h2>Welcome back</h2><p>Sign in with your assigned LTOCM account.</p>{error && <div className="form-error">{error}</div>}<label><span>Username</span><input name="username" autoComplete="username" required autoFocus placeholder="Enter your username"/></label><label><span>Password</span><input name="password" type="password" autoComplete="current-password" required placeholder="Enter your password"/></label><button className="primary-action" disabled={busy}>{busy ? "Signing in…" : "Sign in securely"}<span>→</span></button><small>Authorized personnel only · All activity is audit logged</small></form></section>{inactivityNotice&&<div className="modal-backdrop"><section className="modal-card idle-card" role="alertdialog" aria-modal="true" aria-labelledby="idle-title"><div className="idle-icon">⌛</div><h2 id="idle-title">Automatically signed out</h2><p>You were logged out after {IDLE_TIMEOUT_MINUTES} minutes of inactivity to protect your account.</p><button className="primary-action" onClick={onDismissNotice}>Return to sign in</button></section></div>}</main>;
+  async function update(id: string, body: object) {
+    setError("");
+    const r = await fetch(`/api/admin/users/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const x = await r.json();
+    if (!r.ok) return setError(x.error);
+    if (x.temporaryPassword) {
+      const u = users.find((item) => item.id === id);
+      setSecret({
+        username: u?.username || "user",
+        password: x.temporaryPassword,
+      });
+    }
+    await load();
+    flash(
+      x.temporaryPassword
+        ? "Temporary password generated."
+        : "User access updated.",
+    );
+  }
+  async function remove() {
+    if (!deleteTarget) return;
+    setError("");
+    const r = await fetch(`/api/admin/users/${deleteTarget.id}`, {
+      method: "DELETE",
+    });
+    const x = await r.json();
+    if (!r.ok) {
+      setDeleteTarget(null);
+      return setError(x.error);
+    }
+    setDeleteTarget(null);
+    await load();
+    flash("User account permanently deleted.");
+  }
+  async function saveEdit(e:FormEvent<HTMLFormElement>){e.preventDefault();if(!editTarget)return;const body=Object.fromEntries(new FormData(e.currentTarget));await update(editTarget.id,body);setEditTarget(null);}
+  const activeOffices = locations.offices.filter(
+    (o) =>
+      o.is_active &&
+      locations.agencies.find((a) => a.code === o.agency_code)?.is_active &&
+      locations.regions.find((r) => r.code === o.region_code)?.is_active,
+  );
+  return (
+    <>
+      <section className="workspace-welcome">
+        <div>
+          <p className="eyebrow">SYSTEM ADMINISTRATION</p>
+          <h2>Local LTOCM accounts</h2>
+          <p>
+            Create accounts, assign managed offices, suspend access, and reset
+            passwords.
+          </p>
+        </div>
+      </section>
+      {error && <div className="form-error">{error}</div>}
+      <form className="card admin-create" onSubmit={create}>
+        <div className="list-heading">
+          <div>
+            <h3>Create user account</h3>
+            <p>Region and agency are derived from the selected office.</p>
+          </div>
+          <button className="new-request">Create account</button>
+        </div>
+        <div className="form-grid">
+          <Field name="username" label="Username" />
+          <Field name="fullName" label="Full name" />
+          <Field name="employeeId" label="Employee Number" />
+          <Field name="email" label="Official email" type="email" />
+          <label>
+            <span>Managed Office</span>
+            <select name="officeId" required>
+              <option value="">Select office</option>
+              {activeOffices.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.region_code} · {o.agency_code} · {o.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Field name="position" label="Position / Designation" />
+          <Field name="contactInfo" label="Contact Information" />
+          <label>
+            <span>System role</span>
+            <select name="role" required>
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {roleLabels[r]}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </form>
+      <section className="card request-list admin-list">
+        <div className="list-heading">
+          <div>
+            <h3>User directory and GAOR</h3>
+            <p>Assign accounts through the managed office hierarchy.</p>
+          </div>
+          <span>{users.length} accounts</span>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Managed Office / GAOR</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id}>
+                  <td>
+                    <strong>{u.full_name}</strong>
+                    <small>
+                      {u.username} · {u.employee_id}
+                    </small>
+                  </td>
+                  <td>
+                    <select
+                      value={u.office_id || ""}
+                      onChange={(e) =>
+                        update(u.id, { officeId: e.target.value })
+                      }
+                    >
+                      <option value="">
+                        Legacy: {u.region_code} · {u.agency_code} · {u.office}
+                      </option>
+                      {activeOffices.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.region_code} · {o.agency_code} · {o.name}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <select
+                      value={u.role}
+                      disabled={u.id === currentUser.id}
+                      onChange={(e) => update(u.id, { role: e.target.value })}
+                    >
+                      {ROLES.map((r) => (
+                        <option key={r} value={r}>
+                          {roleLabels[r]}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <span
+                      className={`status-pill ${u.is_active ? "done" : ""}`}
+                    >
+                      <i />
+                      {u.is_active
+                        ? u.must_change_password
+                          ? "Password change due"
+                          : "Active"
+                        : "Suspended"}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="admin-actions">
+                      <button onClick={() => setEditTarget(u)}>Edit User</button>
+                      <button
+                        onClick={() =>
+                          update(u.id, { action: "RESET_PASSWORD" })
+                        }
+                      >
+                        Reset Password
+                      </button>
+                      <button
+                        disabled={u.id === currentUser.id}
+                        onClick={() => update(u.id, { isActive: !u.is_active })}
+                      >
+                        {u.is_active ? "Suspend" : "Activate"}
+                      </button>
+                      <button
+                        className="danger"
+                        disabled={u.id === currentUser.id}
+                        onClick={() => setDeleteTarget(u)}
+                      >
+                        Delete user
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {secret && (
+        <div className="modal-backdrop">
+          <section className="modal-card credential-card">
+            <div className="login-seal">◆</div>
+            <h2>Temporary credential</h2>
+            <p>Copy this now. The password will not be shown again.</p>
+            <div className="credential">
+              <span>Username</span>
+              <strong>{secret.username}</strong>
+              <span>Temporary password</span>
+              <code>{secret.password}</code>
+            </div>
+            <button className="primary-action" onClick={() => setSecret(null)}>
+              I have saved it
+            </button>
+          </section>
+        </div>
+      )}
+      {deleteTarget && (
+        <div className="modal-backdrop">
+          <section className="modal-card credential-card">
+            <div className="login-seal danger-seal">!</div>
+            <h2>Delete user account?</h2>
+            <p>
+              <strong>{deleteTarget.full_name}</strong> ({deleteTarget.username}
+              ) will permanently lose access. This cannot be undone.
+            </p>
+            <div className="confirm-actions">
+              <button onClick={() => setDeleteTarget(null)}>Cancel</button>
+              <button className="danger-button" onClick={remove}>
+                Delete user permanently
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {editTarget&&<div className="modal-backdrop"><form className="modal-card admin-edit" onSubmit={saveEdit}><h2>Edit User</h2><p>Update the user profile and contact information.</p><Field name="fullName" label="Full Name" defaultValue={editTarget.full_name}/><Field name="employeeId" label="Employee Number" defaultValue={editTarget.employee_id}/><Field name="email" label="Official Email" type="email" defaultValue={editTarget.email}/><Field name="position" label="Position / Designation" defaultValue={editTarget.position}/><Field name="contactInfo" label="Contact Information" defaultValue={editTarget.contact_info}/><div className="confirm-actions"><button type="button" onClick={()=>setEditTarget(null)}>Cancel</button><button className="primary-action">Save Changes</button></div></form></div>}
+    </>
+  );
+}
+
+function LocationManagement({ flash }: { flash: (message: string) => void }) {
+  const [data, setData] = useState<LocationsData>({
+    regions: [],
+    agencies: [],
+    offices: [],
+  });
+  const [chiefs, setChiefs] = useState<OfficeChief[]>([]);
+  const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    const [r, c] = await Promise.all([
+      fetch("/api/admin/locations"),
+      fetch("/api/admin/chiefs"),
+    ]);
+    const [x, y] = await Promise.all([r.json(), c.json()]);
+    if (r.ok && c.ok) {
+      setData(x);
+      setChiefs(y.chiefs);
+    } else setError(x.error || y.error);
+  }, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+  }, [load]);
+  async function create(
+    e: FormEvent<HTMLFormElement>,
+    entity: "REGION" | "AGENCY" | "OFFICE",
+  ) {
+    e.preventDefault();
+    setError("");
+    const form = e.currentTarget;
+    const body = { entity, ...Object.fromEntries(new FormData(form)) };
+    const r = await fetch("/api/admin/locations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const x = await r.json();
+    if (!r.ok) return setError(x.error);
+    form.reset();
+    await load();
+    flash(`${entity.toLowerCase()} created.`);
+  }
+  async function change(
+    entity: string,
+    id: string,
+    name: string,
+    isActive: boolean,
+  ) {
+    setError("");
+    const r = await fetch("/api/admin/locations", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ entity, id, name, isActive }),
+    });
+    const x = await r.json();
+    if (!r.ok) return setError(x.error);
+    await load();
+    flash("Location updated.");
+  }
+  async function remove(entity: string, id: string) {
+    setError("");
+    const r = await fetch("/api/admin/locations", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ entity, id }),
+    });
+    const x = await r.json();
+    if (!r.ok) return setError(x.error);
+    await load();
+    flash("Location deleted.");
+  }
+  async function saveChief(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+    const form = e.currentTarget;
+    const body = Object.fromEntries(new FormData(form));
+    const r = await fetch("/api/admin/chiefs", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const x = await r.json();
+    if (!r.ok) return setError(x.error);
+    form.reset();
+    await load();
+    flash("Chief of Office saved.");
+  }
+  async function removeChief(officeId: string) {
+    setError("");
+    const r = await fetch("/api/admin/chiefs", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ officeId }),
+    });
+    const x = await r.json();
+    if (!r.ok) return setError(x.error);
+    await load();
+    flash("Chief of Office assignment removed.");
+  }
+  const activeOffices = data.offices.filter(
+    (o) =>
+      o.is_active &&
+      data.agencies.find((a) => a.code === o.agency_code)?.is_active &&
+      data.regions.find((r) => r.code === o.region_code)?.is_active,
+  );
+  return (
+    <>
+      <section className="workspace-welcome">
+        <div>
+          <p className="eyebrow">LOCATION MASTER DATA</p>
+          <h2>Regions, agency codes, offices, and chiefs</h2>
+          <p>
+            Accounts and Chief of Office assignments use the same managed office
+            hierarchy.
+          </p>
+        </div>
+      </section>
+      {error && <div className="form-error">{error}</div>}
+      <div className="location-grid">
+        <section className="card location-card">
+          <div className="list-heading">
+            <div>
+              <h3>Regions</h3>
+              <p>Top-level GAOR</p>
+            </div>
+            <span>{data.regions.length}</span>
+          </div>
+          <form onSubmit={(e) => create(e, "REGION")}>
+            <input name="code" placeholder="Code (e.g. NCR)" required />
+            <input name="name" placeholder="Region name" required />
+            <button>Add region</button>
+          </form>
+          <div className="location-list">
+            {data.regions.map((r) => (
+              <div key={r.code}>
+                <span>
+                  <strong>{r.name}</strong>
+                  <small>{r.code}</small>
+                </span>
+                <button
+                  onClick={() => change("REGION", r.code, r.name, !r.is_active)}
+                >
+                  {r.is_active ? "Deactivate" : "Activate"}
+                </button>
+                <button
+                  className="danger"
+                  onClick={() => remove("REGION", r.code)}
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="card location-card">
+          <div className="list-heading">
+            <div>
+              <h3>Agency Codes</h3>
+              <p>Belong to a region</p>
+            </div>
+            <span>{data.agencies.length}</span>
+          </div>
+          <form onSubmit={(e) => create(e, "AGENCY")}>
+            <select name="regionCode" required>
+              <option value="">Select region</option>
+              {data.regions
+                .filter((r) => r.is_active)
+                .map((r) => (
+                  <option key={r.code} value={r.code}>
+                    {r.code} · {r.name}
+                  </option>
+                ))}
+            </select>
+            <input name="code" placeholder="Agency code" required />
+            <input name="name" placeholder="Agency name" required />
+            <button>Add agency</button>
+          </form>
+          <div className="location-list">
+            {data.agencies.map((a) => (
+              <div key={a.code}>
+                <span>
+                  <strong>{a.name}</strong>
+                  <small>
+                    {a.region_code} · {a.code}
+                  </small>
+                </span>
+                <button
+                  onClick={() => change("AGENCY", a.code, a.name, !a.is_active)}
+                >
+                  {a.is_active ? "Deactivate" : "Activate"}
+                </button>
+                <button
+                  className="danger"
+                  onClick={() => remove("AGENCY", a.code)}
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="card location-card">
+          <div className="list-heading">
+            <div>
+              <h3>Offices</h3>
+              <p>Assigned to accounts</p>
+            </div>
+            <span>{data.offices.length}</span>
+          </div>
+          <form onSubmit={(e) => create(e, "OFFICE")}>
+            <select name="agencyCode" required>
+              <option value="">Select agency</option>
+              {data.agencies
+                .filter((a) => a.is_active)
+                .map((a) => (
+                  <option key={a.code} value={a.code}>
+                    {a.region_code} · {a.code}
+                  </option>
+                ))}
+            </select>
+            <input name="name" placeholder="Office name" required />
+            <button>Add office</button>
+          </form>
+          <div className="location-list">
+            {data.offices.map((o) => (
+              <div key={o.id}>
+                <span>
+                  <strong>{o.name}</strong>
+                  <small>
+                    {o.region_code} · {o.agency_code}
+                  </small>
+                </span>
+                <button
+                  onClick={() => change("OFFICE", o.id, o.name, !o.is_active)}
+                >
+                  {o.is_active ? "Deactivate" : "Activate"}
+                </button>
+                <button
+                  className="danger"
+                  onClick={() => remove("OFFICE", o.id)}
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="card location-card">
+          <div className="list-heading">
+            <div>
+              <h3>Chief of Office</h3>
+              <p>Linked to a managed office</p>
+            </div>
+            <span>{chiefs.length}</span>
+          </div>
+          <form onSubmit={saveChief}>
+            <select name="officeId" required>
+              <option value="">Name of Office</option>
+              {activeOffices.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.region_code} · {o.agency_code} · {o.name}
+                </option>
+              ))}
+            </select>
+            <input
+              name="chiefName"
+              placeholder="Name of Chief of Office"
+              required
+            />
+            <button>Save Chief of Office</button>
+          </form>
+          <div className="location-list">
+            {chiefs.map((c) => (
+              <div key={c.office_id}>
+                <span>
+                  <strong>{c.chief_name}</strong>
+                  <small>
+                    {c.region_code} · {c.agency_code} · {c.office_name}
+                  </small>
+                </span>
+                <button
+                  className="danger"
+                  onClick={() => removeChief(c.office_id)}
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    </>
+  );
+}
+
+function SystemSettings({ flash }: { flash: (message: string) => void }) {
+  const [settings, setSettings] = useState<Setting[]>([]);
+  const [audit, setAudit] = useState<AdminAudit[]>([]);
+  const [authentication, setAuthentication] =
+    useState<AuthenticationStatus | null>(null);
+  const [error, setError] = useState("");
+  const load = useCallback(async () => {
+    const r = await fetch("/api/admin/settings");
+    const x = await r.json();
+    if (r.ok) {
+      setSettings(x.settings);
+      setAudit(x.audit);
+      setAuthentication(x.authentication);
+    } else setError(x.error);
+  }, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+  }, [load]);
+  async function save(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const values = Object.fromEntries(
+      settings.map((s) => [s.key, String(f.get(s.key) || "")]),
+    );
+    const r = await fetch("/api/admin/settings", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ settings: values }),
+    });
+    const x = await r.json();
+    if (!r.ok) return setError(x.error);
+    await load();
+    flash("System settings saved and audit logged.");
+  }
+  return (
+    <>
+      <section className="workspace-welcome">
+        <div>
+          <p className="eyebrow">SYSTEM ADMINISTRATION</p>
+          <h2>System-wide settings</h2>
+          <p>Configuration changes are restricted to system administrators.</p>
+        </div>
+      </section>
+      {error && <div className="form-error">{error}</div>}
+      {authentication && (
+        <section className="card auth-readiness">
+          <div>
+            <span className="auth-icon">◆</span>
+            <div>
+              <p>AUTHENTICATION PROVIDER</p>
+              <h3>
+                {authentication.activeProvider === "LOCAL"
+                  ? "Local LTOCM accounts active"
+                  : "Keycloak requested"}
+              </h3>
+              <small>
+                Keycloak integration is prepared but deliberately not enabled.
+              </small>
+            </div>
+          </div>
+          <span
+            className={`status-pill ${authentication.keycloak.configured ? "done" : "pending"}`}
+          >
+            <i />
+            {authentication.keycloak.configured
+              ? "Configuration ready"
+              : "Configuration pending"}
+          </span>
+          <dl>
+            <div>
+              <dt>Issuer</dt>
+              <dd>{authentication.keycloak.issuerUrl || "Not configured"}</dd>
+            </div>
+            <div>
+              <dt>Client ID</dt>
+              <dd>{authentication.keycloak.clientId || "Not configured"}</dd>
+            </div>
+            <div>
+              <dt>Role claim</dt>
+              <dd>{authentication.keycloak.roleClaim}</dd>
+            </div>
+            <div>
+              <dt>Scopes</dt>
+              <dd>{authentication.keycloak.scopes}</dd>
+            </div>
+          </dl>
+          {authentication.keycloak.missingSettings.length > 0 && (
+            <p className="auth-missing">
+              Missing: {authentication.keycloak.missingSettings.join(", ")}
+            </p>
+          )}
+        </section>
+      )}
+      <form className="card settings-form" onSubmit={save}>
+        {settings.map((s) => (
+          <label key={s.key}>
+            <span>{s.key.replaceAll("_", " ")}</span>
+            <input name={s.key} defaultValue={s.value} />
+            <small>{s.description}</small>
+          </label>
+        ))}
+        <button className="primary-action">Save all settings</button>
+      </form>
+      <section className="card request-list audit-list">
+        <div className="list-heading">
+          <div>
+            <h3>Administration audit trail</h3>
+            <p>Most recent user and configuration changes.</p>
+          </div>
+          <span>{audit.length} events</span>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Action</th>
+                <th>Administrator</th>
+                <th>Target</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {audit.map((a) => (
+                <tr key={a.id}>
+                  <td>
+                    <strong>{a.action.replaceAll("_", " ")}</strong>
+                  </td>
+                  <td>{a.actor_name}</td>
+                  <td>
+                    {a.entity_type} · {a.entity_id}
+                  </td>
+                  <td>{formatDateTime(a.created_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
+  );
+}
+
+function Login({
+  onLogin,
+  inactivityNotice,
+  onDismissNotice,
+}: {
+  onLogin: (user: AuthUser) => void;
+  inactivityNotice: boolean;
+  onDismissNotice: () => void;
+}) {
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    const data = new FormData(event.currentTarget);
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        username: data.get("username"),
+        password: data.get("password"),
+      }),
+    });
+    const result = await response.json();
+    setBusy(false);
+    if (!response.ok) return setError(result.error);
+    onLogin(result.user);
+  }
+  return (
+    <main className="login-page">
+      <section className="login-story">
+        <div className="brand login-brand">
+          <AgencyLogos />
+          <div>
+            <strong>LTOCM</strong>
+            <span>LTO CREDENTIALS MANAGEMENT</span>
+          </div>
+        </div>
+        <div>
+          <p className="eyebrow">SECURE CREDENTIALS GOVERNANCE</p>
+          <h1>
+            Every credential request.
+            <br />
+            Clear, accountable, complete.
+          </h1>
+          <p>
+            One protected workflow from application and endorsement to approval,
+            implementation, and automatic closure.
+          </p>
+        </div>
+        <div className="login-steps">
+          <span>01 Submit</span>
+          <span>02 Review</span>
+          <span>03 Approve</span>
+          <span>04 Implement</span>
+        </div>
+      </section>
+      <section className="login-panel">
+        <form onSubmit={submit}>
+          <div className="login-mid-logo">
+            <img
+              src="/mid-logo.png"
+              width="288"
+              height="141"
+              alt="LTO Management Information Division (MID)"
+            />
+          </div>
+          <h2>Welcome back</h2>
+          <p>Sign in with your assigned LTOCM account.</p>
+          {error && <div className="form-error">{error}</div>}
+          <label>
+            <span>Username</span>
+            <input
+              name="username"
+              autoComplete="username"
+              required
+              autoFocus
+              placeholder="Enter your username"
+            />
+          </label>
+          <label>
+            <span>Password</span>
+            <input
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+              placeholder="Enter your password"
+            />
+          </label>
+          <button className="primary-action" disabled={busy}>
+            {busy ? "Signing in…" : "Sign in securely"}
+            <span>→</span>
+          </button>
+          <small>
+            Authorized personnel only · All activity is audit logged
+          </small>
+        </form>
+      </section>
+      {inactivityNotice && (
+        <div className="modal-backdrop">
+          <section
+            className="modal-card idle-card"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="idle-title"
+          >
+            <div className="idle-icon">⌛</div>
+            <h2 id="idle-title">Automatically signed out</h2>
+            <p>
+              You were logged out after {IDLE_TIMEOUT_MINUTES} minutes of
+              inactivity to protect your account.
+            </p>
+            <button className="primary-action" onClick={onDismissNotice}>
+              Return to sign in
+            </button>
+          </section>
+        </div>
+      )}
+    </main>
+  );
 }
 
 function ChangePassword({ onDone }: { onDone: () => void }) {
-  const [error,setError]=useState(""); const [busy,setBusy]=useState(false);
-  async function submit(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setError("");const d=new FormData(event.currentTarget);if(d.get("new")!==d.get("confirm")){setBusy(false);return setError("New passwords do not match.");}const r=await fetch("/api/auth/change-password",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({currentPassword:d.get("current"),newPassword:d.get("new")})});const x=await r.json();setBusy(false);if(!r.ok)return setError(x.error);onDone();}
-  return <div className="modal-backdrop"><form className="modal-card password-card" onSubmit={submit}><div className="login-seal">◆</div><h2>Secure your account</h2><p>Replace the temporary password before using LTOCM.</p>{error&&<div className="form-error">{error}</div>}<label><span>Temporary password</span><input name="current" type="password" required/></label><label><span>New password</span><input name="new" type="password" minLength={12} required/><small>At least 12 characters</small></label><label><span>Confirm new password</span><input name="confirm" type="password" minLength={12} required/></label><button className="primary-action" disabled={busy}>{busy?"Updating…":"Set new password"}</button></form></div>;
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    const d = new FormData(event.currentTarget);
+    if (d.get("new") !== d.get("confirm")) {
+      setBusy(false);
+      return setError("New passwords do not match.");
+    }
+    const r = await fetch("/api/auth/change-password", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        currentPassword: d.get("current"),
+        newPassword: d.get("new"),
+      }),
+    });
+    const x = await r.json();
+    setBusy(false);
+    if (!r.ok) return setError(x.error);
+    onDone();
+  }
+  return (
+    <div className="modal-backdrop">
+      <form className="modal-card password-card" onSubmit={submit}>
+        <div className="login-seal">◆</div>
+        <h2>Secure your account</h2>
+        <p>Replace the temporary password before using LTOCM.</p>
+        {error && <div className="form-error">{error}</div>}
+        <label>
+          <span>Temporary password</span>
+          <input name="current" type="password" required />
+        </label>
+        <label>
+          <span>New password</span>
+          <input name="new" type="password" minLength={12} required />
+          <small>At least 12 characters</small>
+        </label>
+        <label>
+          <span>Confirm new password</span>
+          <input name="confirm" type="password" minLength={12} required />
+        </label>
+        <button className="primary-action" disabled={busy}>
+          {busy ? "Updating…" : "Set new password"}
+        </button>
+      </form>
+    </div>
+  );
 }
 
-type PolicyData={title:string;version:string;sections:{title:string;paragraphs:string[]}[];confirmation:string};
-function PolicyAgreement({user,onAccepted,onLogout}:{user:AuthUser;onAccepted:()=>void;onLogout:()=>void}){
-  const [policy,setPolicy]=useState<PolicyData|null>(null);const [read,setRead]=useState(false);const [agreed,setAgreed]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState("");
-  useEffect(()=>{fetch("/api/policy").then(async r=>{const x=await r.json();if(r.ok)setPolicy(x);else setError(x.error);}).catch(()=>setError("The policy agreement could not be loaded."));},[]);
-  async function accept(){setBusy(true);setError("");try{const r=await fetch("/api/policy",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({agree:true})});const x=await r.json();if(!r.ok)throw new Error(x.error||"Agreement could not be recorded.");onAccepted();}catch(e){setError(e instanceof Error?e.message:"Agreement could not be recorded.");}finally{setBusy(false);}}
-  return <main className="policy-page"><section className="policy-card"><header><AgencyLogos compact/><div><p>LTO CREDENTIALS MANAGEMENT</p><h1>{policy?.title||"Policy Agreement"}</h1><span>Required for {user.fullName}</span></div><button onClick={onLogout}>Sign out</button></header>{error&&<div className="form-error">{error}</div>}<div className="policy-scroll" onScroll={(e)=>{const el=e.currentTarget;if(el.scrollHeight-el.scrollTop-el.clientHeight<24)setRead(true);}}>{!policy?<p>Loading policy agreement…</p>:<>{policy.sections.map(section=><section key={section.title}><h2>{section.title}</h2>{section.paragraphs.map((p,i)=><p key={i}>{p}</p>)}</section>)}<div className="policy-confirmation"><strong>Electronic acknowledgment</strong><p>{policy.confirmation}</p></div></>}</div><footer><div><a href="/LTO-CREDENTIALS-MANAGEMENT-POLICY-AGREEMENT.docx" download>Download the complete Policy Agreement</a><small>{read?"You reached the end of the agreement.":"Scroll through the agreement to continue."}</small></div><label><input type="checkbox" checked={agreed} disabled={!read} onChange={e=>setAgreed(e.target.checked)}/><span>I have read, understood, and agree to the Policy Agreement.</span></label><button className="primary-action" disabled={!read||!agreed||busy} onClick={accept}>{busy?"Recording agreement…":"I Agree and Continue"}</button></footer></section></main>;
+type PolicyData = {
+  title: string;
+  version: string;
+  sections: { title: string; paragraphs: string[] }[];
+  confirmation: string;
+};
+function PolicyAgreement({
+  user,
+  onAccepted,
+  onLogout,
+}: {
+  user: AuthUser;
+  onAccepted: () => void;
+  onLogout: () => void;
+}) {
+  const [policy, setPolicy] = useState<PolicyData | null>(null);
+  const [read, setRead] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    fetch("/api/policy")
+      .then(async (r) => {
+        const x = await r.json();
+        if (r.ok) setPolicy(x);
+        else setError(x.error);
+      })
+      .catch(() => setError("The policy agreement could not be loaded."));
+  }, []);
+  async function accept() {
+    setBusy(true);
+    setError("");
+    try {
+      const r = await fetch("/api/policy", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agree: true }),
+      });
+      const x = await r.json();
+      if (!r.ok) throw new Error(x.error || "Agreement could not be recorded.");
+      onAccepted();
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Agreement could not be recorded.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <main className="policy-page">
+      <section className="policy-card">
+        <header>
+          <AgencyLogos compact />
+          <div>
+            <p>LTO CREDENTIALS MANAGEMENT</p>
+            <h1>{policy?.title || "Policy Agreement"}</h1>
+            <span>Required for {user.fullName}</span>
+          </div>
+          <button onClick={onLogout}>Sign out</button>
+        </header>
+        {error && <div className="form-error">{error}</div>}
+        <div
+          className="policy-scroll"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            if (el.scrollHeight - el.scrollTop - el.clientHeight < 24)
+              setRead(true);
+          }}
+        >
+          {!policy ? (
+            <p>Loading policy agreement…</p>
+          ) : (
+            <>
+              {policy.sections.map((section) => (
+                <section key={section.title}>
+                  <h2>{section.title}</h2>
+                  {section.paragraphs.map((p, i) => (
+                    <p key={i}>{p}</p>
+                  ))}
+                </section>
+              ))}
+              <div className="policy-confirmation">
+                <strong>Electronic acknowledgment</strong>
+                <p>{policy.confirmation}</p>
+              </div>
+            </>
+          )}
+        </div>
+        <footer>
+          <div>
+            <a
+              href="/LTO-CREDENTIALS-MANAGEMENT-POLICY-AGREEMENT.docx"
+              download
+            >
+              Download the complete Policy Agreement
+            </a>
+            <small>
+              {read
+                ? "You reached the end of the agreement."
+                : "Scroll through the agreement to continue."}
+            </small>
+          </div>
+          <label>
+            <input
+              type="checkbox"
+              checked={agreed}
+              disabled={!read}
+              onChange={(e) => setAgreed(e.target.checked)}
+            />
+            <span>
+              I have read, understood, and agree to the Policy Agreement.
+            </span>
+          </label>
+          <button
+            className="primary-action"
+            disabled={!read || !agreed || busy}
+            onClick={accept}
+          >
+            {busy ? "Recording agreement…" : "I Agree and Continue"}
+          </button>
+        </footer>
+      </section>
+    </main>
+  );
 }
 
-function WorkspaceHome({ user, requests, onSelect, onNew }: { user:AuthUser; requests:AccessRequest[]; onSelect:(id:string)=>void; onNew:()=>void }) {
-  const actionable=requests.filter((r)=>r.currentRole===user.role).length; const closed=requests.filter((r)=>r.status==="CLOSED").length;
-  return <><section className="workspace-welcome"><div><p className="eyebrow">OPERATIONS OVERVIEW</p><h2>{user.role==="DO"?"Your credential requests":"Requests requiring attention"}</h2><p>Track every application through the complete approval chain.</p></div>{user.role==="DO"&&<button className="new-request" onClick={onNew}>＋ New request</button>}</section><div className="metric-grid"><div className="metric"><span>Open requests</span><strong>{requests.length-closed}</strong><small>Across your workspace</small></div><div className="metric accent"><span>Action required</span><strong>{actionable}</strong><small>Assigned to your role</small></div><div className="metric"><span>Implemented</span><strong>{closed}</strong><small>Automatically closed</small></div></div><section className="card request-list"><div className="list-heading"><div><h3>Request register</h3><p>Most recent applications and current ownership</p></div><span>{requests.length} records</span></div>{requests.length===0?<div className="empty-state"><strong>No requests yet</strong><p>{user.role==="DO"?"Create your first LTO credentials request.":"There are no requests available for this role."}</p></div>:<div className="table-wrap"><table><thead><tr><th>Reference</th><th>Applicant</th><th>System</th><th>Status</th><th>Submitted</th><th></th></tr></thead><tbody>{requests.map((r)=><tr key={r.id} className={r.currentRole===user.role?"needs-action":""}><td><strong>{r.referenceNo}</strong></td><td>{r.applicantName}<small>Agency {r.agencyCode}</small></td><td>{r.systemName}<small>{r.accessLevel}</small></td><td><span className={`status-pill ${r.status==="CLOSED"?"done":"pending"}`}><i/>{statusLabels[r.status]||r.status}</span></td><td>{formatDate(r.createdAt)}</td><td><button className="view-link" onClick={()=>onSelect(r.id)}>Review →</button></td></tr>)}</tbody></table></div>}</section></>;
+function WorkspaceHome({
+  user,
+  requests,
+  onSelect,
+  onNew,
+}: {
+  user: AuthUser;
+  requests: AccessRequest[];
+  onSelect: (id: string) => void;
+  onNew: () => void;
+}) {
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyStatus, setHistoryStatus] = useState("ALL");
+  const actionable = requests.filter((r) => r.currentRole === user.role).length;
+  const closed = requests.filter((r) => r.status === "CLOSED").length;
+  const filtered = requests.filter(
+    (r) =>
+      (historyStatus === "ALL" || r.status === historyStatus) &&
+      `${r.referenceNo} ${r.applicantName} ${r.systemName}`
+        .toLowerCase()
+        .includes(historySearch.toLowerCase()),
+  );
+  return (
+    <>
+      <section className="workspace-welcome">
+        <div>
+          <p className="eyebrow">OPERATIONS OVERVIEW</p>
+          <h2>
+            {user.role === "DO"
+              ? "Your credential requests"
+              : "Requests requiring attention"}
+          </h2>
+          <p>Track every application through the complete approval chain.</p>
+        </div>
+        {user.role === "DO" && (
+          <button className="new-request" onClick={onNew}>
+            ＋ New request
+          </button>
+        )}
+      </section>
+      <div className="metric-grid">
+        <div className="metric">
+          <span>Open requests</span>
+          <strong>{requests.length - closed}</strong>
+          <small>Across your workspace</small>
+        </div>
+        <div className="metric accent">
+          <span>Action required</span>
+          <strong>{actionable}</strong>
+          <small>Assigned to your role</small>
+        </div>
+        <div className="metric">
+          <span>Implemented</span>
+          <strong>{closed}</strong>
+          <small>Automatically closed</small>
+        </div>
+      </div>
+      <section className="history-filters">
+        <input
+          value={historySearch}
+          onChange={(e) => setHistorySearch(e.target.value)}
+          placeholder="Search request history"
+        />
+        <select
+          value={historyStatus}
+          onChange={(e) => setHistoryStatus(e.target.value)}
+        >
+          <option value="ALL">All statuses</option>
+          {Object.entries(statusLabels).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <button className="print-button" onClick={() => window.print()}>
+          Print filtered history
+        </button>
+      </section>
+      <section className="card request-list">
+        <div className="list-heading">
+          <div>
+            <h3>Request history</h3>
+            <p>Filtered requests within your authorized scope</p>
+          </div>
+          <span>{filtered.length} records</span>
+        </div>
+        {filtered.length === 0 ? (
+          <div className="empty-state">
+            <strong>No matching requests</strong>
+            <p>Adjust the history filters.</p>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Reference</th>
+                  <th>Applicant</th>
+                  <th>System</th>
+                  <th>Status</th>
+                  <th>Submitted</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r) => (
+                  <tr
+                    key={r.id}
+                    className={
+                      r.currentRole === user.role ? "needs-action" : ""
+                    }
+                  >
+                    <td>
+                      <strong>{r.referenceNo}</strong>
+                    </td>
+                    <td>
+                      {r.applicantName}
+                      <small>Agency {r.agencyCode}</small>
+                    </td>
+                    <td>
+                      {r.systemName}
+                      <small>{r.accessLevel}</small>
+                    </td>
+                    <td>
+                      <span
+                        className={`status-pill ${r.status === "CLOSED" ? "done" : "pending"}`}
+                      >
+                        <i />
+                        {statusLabels[r.status] || r.status}
+                      </span>
+                    </td>
+                    <td>{formatDate(r.createdAt)}</td>
+                    <td>
+                      <button
+                        className="view-link"
+                        onClick={() => onSelect(r.id)}
+                      >
+                        Review →
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </>
+  );
 }
 
-function ApplicationForm({ user,onCreated }:{user:AuthUser;onCreated:(r:AccessRequest)=>void}){
-  const [error,setError]=useState("");const [busy,setBusy]=useState(false);const [system,setSystem]=useState("");const [changeOffice,setChangeOffice]=useState(false);const [loginMode,setLoginMode]=useState("");const [otherModule,setOtherModule]=useState(false);const [fileCount,setFileCount]=useState(0);const [supervisor,setSupervisor]=useState<FormOption|null>(null);const [optionsLoading,setOptionsLoading]=useState(true);
-  useEffect(()=>{let active=true;fetch("/api/request-form-options").then(async r=>{const x=await r.json();if(!r.ok)throw new Error(x.error||"Form options could not be loaded.");if(active){setSupervisor(x.supervisor);if(!x.supervisor)setError("No Chief of Office is enrolled for your office. Contact the System Administrator.");}}).catch(e=>{if(active)setError(e instanceof Error?e.message:"Form options could not be loaded.");}).finally(()=>{if(active)setOptionsLoading(false);});return()=>{active=false;};},[]);
-  async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();setError("");const files=(new FormData(e.currentTarget).getAll("attachments") as File[]).filter(f=>f.size>0);if(files.length>5)return setError("Attach no more than 5 files.");if(files.some(f=>f.size>10*1024*1024))return setError("Each attachment must be 10 MB or smaller.");setBusy(true);const controller=new AbortController();const timer=window.setTimeout(()=>controller.abort(),120000);try{const body=new FormData(e.currentTarget);const r=await fetch("/api/requests",{method:"POST",body,signal:controller.signal});const contentType=r.headers.get("content-type")||"";const x=contentType.includes("application/json")?await r.json():null;if(!r.ok)throw new Error(x?.error||(r.status===413?"The attachments exceed the 50 MB total upload limit.":`Upload failed (server response ${r.status}).`));onCreated(x.request);}catch(err){setError(err instanceof DOMException&&err.name==="AbortError"?"The upload timed out. Check your connection and try again.":err instanceof Error?err.message:"The request could not be submitted.");}finally{window.clearTimeout(timer);setBusy(false);}}
-  return <form className="application-form" onSubmit={submit}>
-    <section className="form-intro"><span>NEW CREDENTIALS REQUEST</span><h2>LTO credentials application</h2><p>Complete the applicable datasets. Selected items become part of the permanent request record.</p></section>
-    {error&&<div className="form-error">{error}</div>}
-    <section className="card form-section locked-dataset"><div className="dataset-title"><b>ACCOUNT INFORMATION · LOCKED</b><h3>Requesting office account</h3></div><div className="info-grid"><Info label="LTOCM Account" value={user.fullName}/><Info label="Region" value={user.regionCode}/><Info label="Agency Code" value={user.agencyCode}/><Info label="Office" value={user.office}/><Info label="Immediate Supervisor" value={optionsLoading?"Loading enrolled Chief of Office…":supervisor?.label||"Not enrolled"}/></div></section>
-    <section className="card form-section"><div className="dataset-title"><b>DATA SET 1</b><h3>Requestor information</h3></div><div className="form-grid"><Field name="applicantName" label="Full Name (Last Name, First Name, Middle Name)"/><Field name="requesterPosition" label="Position / Designation"/><Field name="requesterOffice" label="Office"/><Field name="requesterEmployeeNo" label="Employee Number"/><Field name="requesterContact" label="Contact Information"/><Field name="requesterEmail" label="Email" type="email"/></div><div className="info-grid locked-inline"><Info label="Region" value={user.regionCode}/></div></section>
-    <section className="card form-section"><div className="dataset-title"><b>DATA SET 2</b><h3>Access requirements</h3></div><div className="form-grid"><label><span>System / Application</span><select name="systemName" value={system} onChange={(e)=>setSystem(e.target.value)} required><option value="">Select system or application</option>{SYSTEM_OPTIONS.map((option)=><option key={option}>{option}</option>)}</select></label><label><span>Account Type</span><select name="accountType" required><option value="">Select account type</option>{ACCOUNT_TYPES.map((option)=><option key={option}>{option}</option>)}</select></label></div><label className="toggle-row"><input type="checkbox" name="changeOfficeRequested" value="true" checked={changeOffice} onChange={(e)=>setChangeOffice(e.target.checked)}/><span>Change Office Code</span></label>{changeOffice&&<div className="form-grid conditional"><Field name="changeOfficeFrom" label="From Office Code"/><Field name="changeOfficeTo" label="To Office Code"/></div>}<fieldset className="check-section"><legend>Request Access Level <small>Select all that apply</small></legend><div className="check-grid">{ACCESS_LEVELS.map((option)=><label key={option}><input type="checkbox" name="accessLevels" value={option}/><span>{option}</span></label>)}</div></fieldset><label className="full-field"><span>Request to Change Login Mode <em>Optional</em></span><select name="loginMode" value={loginMode} onChange={(e)=>setLoginMode(e.target.value)}><option value="">No login mode change</option>{LOGIN_MODES.map((option)=><option key={option}>{option}</option>)}</select></label>{loginMode==="Password"&&<div className="requirement-note"><strong>Chief-signed letter required</strong><p>Attach the signed authorization letter below before submitting.</p></div>}</section>
-    {system==="Land Transportation Management System (LTMS)"&&<section className="card form-section ltms-section"><div className="dataset-title"><b>DATA SET 3</b><h3>LTMS Modules</h3></div>{LTMS_MODULE_GROUPS.map((group)=><fieldset className={"chiefOnly" in group&&group.chiefOnly?"check-section chief-only":"check-section"} key={group.name}><legend>{group.name}{"chiefOnly" in group&&group.chiefOnly&&<small>Chief / OIC only</small>}</legend><div className="check-grid">{group.items.map((option)=><label key={option}><input type="checkbox" name="ltmsModules" value={option} onChange={option==="Others. Please specify"?(e)=>setOtherModule(e.target.checked):undefined}/><span>{option}</span></label>)}</div></fieldset>)}{otherModule&&<Field name="ltmsOther" label="Other LTMS Module — Please specify"/>}</section>}
-    <section className="card form-section"><div className="dataset-title"><b>SUPPORTING DOCUMENTS</b><h3>Attachments</h3></div><label className="full-field attachment-field"><span>Upload supporting files {loginMode==="Password"?<strong>Required for Password mode</strong>:<em>Optional</em>}</span><input name="attachments" type="file" multiple required={loginMode==="Password"} accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" onChange={(e)=>setFileCount(e.target.files?.length||0)}/><small>{fileCount} selected · Up to 5 files · PDF, PNG, JPG, DOCX, or XLSX · 10 MB each</small></label></section>
-    <div className="form-submit"><p>Submission routes this request to the Head of Office for endorsement.</p><button className="primary-action" disabled={busy||optionsLoading||!supervisor||fileCount>5}>{busy?"Uploading and submitting…":"Submit credentials request"}<span>→</span></button></div>
-  </form>;
+function ApplicationForm({
+  user,
+  onCreated,
+}: {
+  user: AuthUser;
+  onCreated: (r: AccessRequest) => void;
+}) {
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [system, setSystem] = useState("");
+  const [changeOffice, setChangeOffice] = useState(false);
+  const [loginMode, setLoginMode] = useState("");
+  const [otherModule, setOtherModule] = useState(false);
+  const [fileCount, setFileCount] = useState(0);
+  const [supervisor, setSupervisor] = useState<FormOption | null>(null);
+  const [optionsLoading, setOptionsLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/request-form-options")
+      .then(async (r) => {
+        const x = await r.json();
+        if (!r.ok)
+          throw new Error(x.error || "Form options could not be loaded.");
+        if (active) {
+          setSupervisor(x.supervisor);
+          if (!x.supervisor)
+            setError(
+              "No Chief of Office is enrolled for your office. Contact the System Administrator.",
+            );
+        }
+      })
+      .catch((e) => {
+        if (active)
+          setError(
+            e instanceof Error
+              ? e.message
+              : "Form options could not be loaded.",
+          );
+      })
+      .finally(() => {
+        if (active) setOptionsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError("");
+    const files = Array.from(new FormData(e.currentTarget).values()).filter(
+      (value): value is File => value instanceof File && value.size > 0,
+    );
+    if (files.length > 5) return setError("Attach no more than 5 files.");
+    if (files.some((f) => f.size > 10 * 1024 * 1024))
+      return setError("Each attachment must be 10 MB or smaller.");
+    setBusy(true);
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 120000);
+    try {
+      const body = new FormData(e.currentTarget);
+      const r = await fetch("/api/requests", {
+        method: "POST",
+        body,
+        signal: controller.signal,
+      });
+      const contentType = r.headers.get("content-type") || "";
+      const x = contentType.includes("application/json")
+        ? await r.json()
+        : null;
+      if (!r.ok)
+        throw new Error(
+          x?.error ||
+            (r.status === 413
+              ? "The attachments exceed the 50 MB total upload limit."
+              : `Upload failed (server response ${r.status}).`),
+        );
+      onCreated(x.request);
+    } catch (err) {
+      setError(
+        err instanceof DOMException && err.name === "AbortError"
+          ? "The upload timed out. Check your connection and try again."
+          : err instanceof Error
+            ? err.message
+            : "The request could not be submitted.",
+      );
+    } finally {
+      window.clearTimeout(timer);
+      setBusy(false);
+    }
+  }
+  return (
+    <form className="application-form" onSubmit={submit}>
+      <section className="form-intro">
+        <span>NEW CREDENTIALS REQUEST</span>
+        <h2>LTO credentials application</h2>
+        <p>
+          Complete the applicable datasets. Selected items become part of the
+          permanent request record.
+        </p>
+      </section>
+      {error && <div className="form-error">{error}</div>}
+      <section className="card form-section locked-dataset">
+        <div className="dataset-title">
+          <b>ACCOUNT INFORMATION · LOCKED</b>
+          <h3>Requesting office account</h3>
+        </div>
+        <div className="info-grid">
+          <Info label="LTOCM Account" value={user.fullName} />
+          <Info label="Region" value={user.regionCode} />
+          <Info label="Agency Code" value={user.agencyCode} />
+          <Info label="Office" value={user.office} />
+          <Info
+            label="Immediate Supervisor"
+            value={
+              optionsLoading
+                ? "Loading enrolled Chief of Office…"
+                : supervisor?.label || "Not enrolled"
+            }
+          />
+        </div>
+      </section>
+      <section className="card form-section">
+        <div className="dataset-title">
+          <b>DATA SET 1</b>
+          <h3>Requestor information</h3>
+        </div>
+        <div className="form-grid">
+          <Field
+            name="applicantName"
+            label="Full Name (Last Name, First Name, Middle Name)"
+          />
+          <Field name="requesterPosition" label="Position / Designation" />
+          <Field name="requesterOffice" label="Office" />
+          <Field name="requesterEmployeeNo" label="Employee Number" />
+          <Field name="requesterContact" label="Contact Information" />
+          <Field name="requesterEmail" label="Email" type="email" />
+        </div>
+        <div className="info-grid locked-inline">
+          <Info label="Region" value={user.regionCode} />
+        </div>
+      </section>
+      <section className="card form-section">
+        <div className="dataset-title">
+          <b>DATA SET 2</b>
+          <h3>Access requirements</h3>
+        </div>
+        <div className="form-grid">
+          <label>
+            <span>System / Application</span>
+            <select
+              name="systemName"
+              value={system}
+              onChange={(e) => setSystem(e.target.value)}
+              required
+            >
+              <option value="">Select system or application</option>
+              {SYSTEM_OPTIONS.map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Account Type</span>
+            <select name="accountType" required>
+              <option value="">Select account type</option>
+              {ACCOUNT_TYPES.map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            name="changeOfficeRequested"
+            value="true"
+            checked={changeOffice}
+            onChange={(e) => setChangeOffice(e.target.checked)}
+          />
+          <span>Change Office Code</span>
+        </label>
+        {changeOffice && (
+          <div className="form-grid conditional">
+            <Field name="changeOfficeFrom" label="From Office Code" />
+            <Field name="changeOfficeTo" label="To Office Code" />
+          </div>
+        )}
+        <fieldset className="check-section">
+          <legend>
+            Request Access Level <small>Select all that apply</small>
+          </legend>
+          <div className="check-grid">
+            {ACCESS_LEVELS.map((option) => (
+              <label key={option}>
+                <input type="checkbox" name="accessLevels" value={option} />
+                <span>{option}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <label className="full-field">
+          <span>
+            Request to Change Login Mode <em>Optional</em>
+          </span>
+          <select
+            name="loginMode"
+            value={loginMode}
+            onChange={(e) => setLoginMode(e.target.value)}
+          >
+            <option value="">No login mode change</option>
+            {LOGIN_MODES.map((option) => (
+              <option key={option}>{option}</option>
+            ))}
+          </select>
+        </label>
+        {loginMode === "Password" && (
+          <div className="requirement-note">
+            <strong>Chief-signed letter required</strong>
+            <p>
+              Attach the signed authorization letter below before submitting.
+            </p>
+          </div>
+        )}
+      </section>
+      {system === "Land Transportation Management System (LTMS)" && (
+        <section className="card form-section ltms-section">
+          <div className="dataset-title">
+            <b>DATA SET 3</b>
+            <h3>LTMS Modules</h3>
+          </div>
+          {LTMS_MODULE_GROUPS.map((group) => (
+            <fieldset
+              className={
+                "chiefOnly" in group && group.chiefOnly
+                  ? "check-section chief-only"
+                  : "check-section"
+              }
+              key={group.name}
+            >
+              <legend>
+                {group.name}
+                {"chiefOnly" in group && group.chiefOnly && (
+                  <small>Chief / OIC only</small>
+                )}
+              </legend>
+              <div className="check-grid">
+                {group.items.map((option) => (
+                  <label key={option}>
+                    <input
+                      type="checkbox"
+                      name="ltmsModules"
+                      value={option}
+                      onChange={
+                        option === "Others. Please specify"
+                          ? (e) => setOtherModule(e.target.checked)
+                          : undefined
+                      }
+                    />
+                    <span>{option}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          ))}
+          {otherModule && (
+            <Field
+              name="ltmsOther"
+              label="Other LTMS Module — Please specify"
+            />
+          )}
+        </section>
+      )}
+      <section className="card form-section">
+        <div className="dataset-title">
+          <b>SUPPORTING DOCUMENTS</b>
+          <h3>Attachments</h3>
+        </div>
+        <div className="form-grid">
+          <label className="attachment-field">
+            <span>
+              Employee ID <strong>Required</strong>
+            </span>
+            <input
+              name="employeeIdAttachment"
+              type="file"
+              required
+              accept=".pdf,.png,.jpg,.jpeg"
+              onChange={(e) =>
+                setFileCount((count) => count + (e.target.files?.length || 0))
+              }
+            />
+          </label>
+          <label className="attachment-field">
+            <span>
+              Affidavit of Undertaking <em>Optional</em>
+            </span>
+            <input
+              name="affidavitAttachment"
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.docx"
+            />
+          </label>
+          <label className="attachment-field">
+            <span>
+              Certificate of Assumption <em>Optional</em>
+            </span>
+            <input
+              name="assumptionAttachment"
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.docx"
+            />
+          </label>
+          <label className="attachment-field">
+            <span>
+              Office Order <em>Optional</em>
+            </span>
+            <input
+              name="officeOrderAttachment"
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.docx"
+            />
+          </label>
+        </div>
+        <small>PDF, PNG, JPG, or DOCX · 10 MB each</small>
+      </section>
+      <div className="form-submit">
+        <p>
+          Submission routes this request to the Head of Office for endorsement.
+        </p>
+        <button
+          className="primary-action"
+          disabled={busy || optionsLoading || !supervisor || fileCount > 5}
+        >
+          {busy ? "Uploading and submitting…" : "Submit credentials request"}
+          <span>→</span>
+        </button>
+      </div>
+    </form>
+  );
 }
 
-function RequestDetail({request,user,onBack,onAction}:{request:Detail;user:AuthUser;onBack:()=>void;onAction:()=>void}){
-  const [notes,setNotes]=useState("");const [password,setPassword]=useState("");const [verify,setVerify]=useState(false);const [error,setError]=useState("");const [busy,setBusy]=useState(false);const [correcting,setCorrecting]=useState(false);
-  const transition=transitions[request.status];const canAct=transition?.role===user.role;const steps=["PENDING_ENDORSEMENT","PENDING_RECOMMENDATION","PENDING_REGIONAL_DIRECTOR","PENDING_MID_APPROVAL","PENDING_IMPLEMENTATION","CLOSED"];const stage=steps.indexOf(request.status);
-  async function act(action:string){if(action==="DISAPPROVE"&&!notes.trim())return setError("Remarks are required when disapproving a request.");if(action!=="DISAPPROVE"&&user.role==="REGIONAL_DIRECTOR"&&!verify){setVerify(true);return;}setBusy(true);setError("");const r=await fetch(`/api/requests/${request.id}/action`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action,notes,password})});const x=await r.json();setBusy(false);if(!r.ok)return setError(x.error);setVerify(false);setPassword("");setNotes("");onAction();}
-  const canPrint=["REGIONAL_OPERATIONS_CHIEF","REGIONAL_DIRECTOR","MID_CHIEF","TECHNICAL_TEAM","SYSTEM_ADMIN"].includes(user.role);
-  if(correcting)return <CorrectionForm request={request} onCancel={()=>setCorrecting(false)} onDone={()=>{setCorrecting(false);onAction();}}/>;
-  return <><div className="detail-toolbar"><button className="back-link" onClick={onBack}>← Back to workspace</button>{canPrint&&<button className="print-button" onClick={()=>window.print()}>Print complete request</button>}</div>
-  <section className={`request-hero ${request.status==="CLOSED"?"closed":""}`}><div className="hero-main"><div className="app-icon">LC</div><div><div className="eyebrow">CREDENTIALS REQUEST <span>{request.referenceNo}</span></div><h2>{request.systemName}</h2><p>{request.applicantName} · {request.employmentStatus} · {request.regionCode} · Agency {request.agencyCode}</p></div></div><div className="hero-status"><span className={`status-pill ${request.status==="CLOSED"?"done":"pending"}`}><i/>{statusLabels[request.status]}</span><small>Submitted {formatDateTime(request.createdAt)}</small></div></section>
-  {request.status!=="RETURNED_FOR_CORRECTION"&&<section className="progress-card"><div className="progress-heading"><div><strong>Approval progress</strong><span>{request.status==="CLOSED"?"All steps completed":`Step ${stage+1} of 6`}</span></div><b>{request.status==="CLOSED"?100:Math.round((stage/5)*100)}%</b></div><div className="progress-line"><i style={{width:`${request.status==="CLOSED"?100:(stage/5)*100}%`}}/></div><div className="stepper">{["Head of Office","Operations Chief","Regional Director","MID Chief","Technical Team","Closed"].map((name,i)=><div key={name} className={`step ${i<stage||request.status==="CLOSED"?"complete":i===stage?"current":""}`}><div className="step-dot">{i<stage||request.status==="CLOSED"?"✓":i+1}</div><strong>{name}</strong><span>{i<stage||request.status==="CLOSED"?"Completed":i===stage?"Current":"Pending"}</span></div>)}</div></section>}
-  <div className="two-column"><section className="card detail-card"><div className="detail-body"><p className="dataset-kicker">ACCOUNT INFORMATION · LOCKED</p><h3>Requesting office</h3><div className="info-grid"><Info label="Region" value={request.regionCode}/><Info label="Agency Code" value={request.agencyCode}/><Info label="Immediate Superior" value={request.immediateSuperior}/></div><hr/><p className="dataset-kicker">DATA SET 1</p><h3>Requestor information</h3><div className="info-grid"><Info label="Full Name" value={request.applicantName}/><Info label="Position / Designation" value={request.requesterPosition}/><Info label="Office" value={request.requesterOffice}/><Info label="Employee Number" value={request.requesterEmployeeNo}/><Info label="Contact Information" value={request.requesterContact}/><Info label="Email" value={request.requesterEmail}/></div><hr/><p className="dataset-kicker">DATA SET 2</p><h3>Access requirements</h3><div className="info-grid"><Info label="System / Application" value={request.systemName}/><Info label="Account Type" value={request.accountType}/><Info label="Login Mode Change" value={request.loginMode||"None"}/>{request.changeOfficeRequested&&<Info label="Office Code Change" value={`${request.changeOfficeFrom} → ${request.changeOfficeTo}`}/>}</div><SelectionList title="Request Access Levels" items={request.accessLevels}/>{request.systemName==="Land Transportation Management System (LTMS)"&&<><hr/><p className="dataset-kicker">DATA SET 3</p><h3>LTMS Modules</h3><SelectionList title="Selected Modules" items={request.ltmsModules}/>{request.ltmsOther&&<Info label="Other LTMS Module" value={request.ltmsOther}/>}</>}<hr/><h3>Approval and audit trail</h3><div className="trail-body compact">{request.events.map(e=><div className="trail-item" key={e.id}><div>✓</div><section><strong>{e.action.replaceAll("_"," ")}</strong><p>{e.actorName} · {roleLabels[e.actorRole]}</p>{e.notes&&<p>“{e.notes}”</p>}<span>{formatDateTime(e.createdAt)}</span></section></div>)}</div></div></section>
-  <aside className="action-column"><section className="card action-card"><div className="action-title"><span>{request.status==="CLOSED"?"✓":"◆"}</span><div><h3>{request.status==="CLOSED"?"Transaction closed":request.status==="RETURNED_FOR_CORRECTION"?"Correction required":canAct?"Action required":"Read-only view"}</h3><p>{request.status==="RETURNED_FOR_CORRECTION"?"The requestor must correct and resubmit this application.":request.status==="CLOSED"?"Implementation is complete.":canAct?`Assigned to ${roleLabels[user.role]}.`:request.currentRole?`Pending ${roleLabels[request.currentRole]}.`:"No pending owner."}</p></div></div>{error&&<div className="form-error small">{error}</div>}{canAct&&<><label className="notes"><span>Remarks {notes.trim()?"":"(required for disapproval)"}</span><textarea value={notes} maxLength={500} onChange={e=>setNotes(e.target.value)} placeholder="Record approval notes or explain the reason for rejection…"/></label>{verify&&<div className="verify-box"><div><span>▣</span><strong>Director step-up verification</strong></div><p>Re-enter your password to authorize this approval.</p><input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoFocus placeholder="Your LTOCM password"/></div>}<button className="primary-action" disabled={busy||(verify&&!password)} onClick={()=>act(transition.action)}>{busy?"Processing…":verify?"Verify and approve":actionLabels[transition.action]}<span>→</span></button><button className="disapprove-button" disabled={busy} onClick={()=>act("DISAPPROVE")}>Disapprove and return for correction</button></>}{request.status==="RETURNED_FOR_CORRECTION"&&user.role==="DO"&&<button className="primary-action" onClick={()=>setCorrecting(true)}>Correct and resubmit <span>→</span></button>}{request.status==="CLOSED"&&<div className="closed-receipt"><div><span>Implementation ID</span><strong>{request.implementationId}</strong></div><div><span>Closed</span><strong>{request.closedAt&&formatDateTime(request.closedAt)}</strong></div></div>}</section></aside></div></>;
+function RequestDetail({
+  request,
+  user,
+  onBack,
+  onAction,
+}: {
+  request: Detail;
+  user: AuthUser;
+  onBack: () => void;
+  onAction: () => void;
+}) {
+  const [notes, setNotes] = useState("");
+  const [password, setPassword] = useState("");
+  const [verify, setVerify] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [correcting, setCorrecting] = useState(false);
+  const transition = transitions[request.status];
+  const canAct = transition?.role === user.role;
+  const steps = [
+    "PENDING_ENDORSEMENT",
+    "PENDING_RECOMMENDATION",
+    "PENDING_REGIONAL_DIRECTOR",
+    "PENDING_MID_VERIFICATION",
+    "PENDING_MID_APPROVAL",
+    "PENDING_IMPLEMENTATION",
+    "CLOSED",
+  ];
+  const stage = steps.indexOf(request.status);
+  async function act(action: string) {
+    if (action === "DISAPPROVE" && !notes.trim())
+      return setError("Remarks are required when disapproving a request.");
+    if (
+      action !== "DISAPPROVE" &&
+      user.role === "REGIONAL_DIRECTOR" &&
+      !verify
+    ) {
+      setVerify(true);
+      return;
+    }
+    setBusy(true);
+    setError("");
+    const r = await fetch(`/api/requests/${request.id}/action`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action, notes, password }),
+    });
+    const x = await r.json();
+    setBusy(false);
+    if (!r.ok) return setError(x.error);
+    setVerify(false);
+    setPassword("");
+    setNotes("");
+    onAction();
+  }
+  const canPrint = [
+    "REGIONAL_OPERATIONS_CHIEF",
+    "REGIONAL_DIRECTOR",
+    "MID_VERIFIER",
+    "MID_CHIEF",
+    "TECHNICAL_TEAM",
+    "SYSTEM_ADMIN",
+  ].includes(user.role);
+  if (correcting)
+    return (
+      <CorrectionForm
+        request={request}
+        onCancel={() => setCorrecting(false)}
+        onDone={() => {
+          setCorrecting(false);
+          onAction();
+        }}
+      />
+    );
+  return (
+    <>
+      <div className="detail-toolbar">
+        <button className="back-link" onClick={onBack}>
+          ← Back to workspace
+        </button>
+        {canPrint && (
+          <button className="print-button" onClick={() => window.print()}>
+            Print complete request
+          </button>
+        )}
+      </div>
+      <section className="request-verification">
+        <img
+          src={`/api/requests/${request.id}/qr`}
+          alt="Request verification QR code"
+        />
+        <div>
+          <strong>Scan to verify request</strong>
+          <span>{request.referenceNo}</span>
+        </div>
+      </section>
+      <PrintRequestSummary request={request} />
+      <section
+        className={`request-hero ${request.status === "CLOSED" ? "closed" : ""}`}
+      >
+        <div className="hero-main">
+          <div className="app-icon">LC</div>
+          <div>
+            <div className="eyebrow">
+              CREDENTIALS REQUEST <span>{request.referenceNo}</span>
+            </div>
+            <h2>{request.systemName}</h2>
+            <p>
+              {request.applicantName} · {request.employmentStatus} ·{" "}
+              {request.regionCode} · Agency {request.agencyCode}
+            </p>
+          </div>
+        </div>
+        <div className="hero-status">
+          <span
+            className={`status-pill ${request.status === "CLOSED" ? "done" : "pending"}`}
+          >
+            <i />
+            {statusLabels[request.status]}
+          </span>
+          <small>Submitted {formatDateTime(request.createdAt)}</small>
+        </div>
+      </section>
+      {request.status !== "RETURNED_FOR_CORRECTION" && (
+        <section className="progress-card">
+          <div className="progress-heading">
+            <div>
+              <strong>Approval progress</strong>
+              <span>
+                {request.status === "CLOSED"
+                  ? "All steps completed"
+                  : `Step ${stage + 1} of 7`}
+              </span>
+            </div>
+            <b>
+              {request.status === "CLOSED"
+                ? 100
+                : Math.round((stage / 6) * 100)}
+              %
+            </b>
+          </div>
+          <div className="progress-line">
+            <i
+              style={{
+                width: `${request.status === "CLOSED" ? 100 : (stage / 6) * 100}%`,
+              }}
+            />
+          </div>
+          <div className="stepper">
+            {[
+              "Head of Office",
+              "Operations Chief",
+              "Regional Director",
+              "MID Verification",
+              "MID Chief",
+              "Technical Team",
+              "Closed",
+            ].map((name, i) => (
+              <div
+                key={name}
+                className={`step ${i < stage || request.status === "CLOSED" ? "complete" : i === stage ? "current" : ""}`}
+              >
+                <div className="step-dot">
+                  {i < stage || request.status === "CLOSED" ? "✓" : i + 1}
+                </div>
+                <strong>{name}</strong>
+                <span>
+                  {i < stage || request.status === "CLOSED"
+                    ? "Completed"
+                    : i === stage
+                      ? "Current"
+                      : "Pending"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      <div className="two-column">
+        <section className="card detail-card">
+          <div className="detail-body">
+            <p className="dataset-kicker">ACCOUNT INFORMATION · LOCKED</p>
+            <h3>Requesting office</h3>
+            <div className="info-grid">
+              <Info label="Region" value={request.regionCode} />
+              <Info label="Agency Code" value={request.agencyCode} />
+              <Info
+                label="Immediate Superior"
+                value={request.immediateSuperior}
+              />
+            </div>
+            <hr />
+            <p className="dataset-kicker">DATA SET 1</p>
+            <h3>Requestor information</h3>
+            <div className="info-grid">
+              <Info label="Full Name" value={request.applicantName} />
+              <Info
+                label="Position / Designation"
+                value={request.requesterPosition}
+              />
+              <Info label="Office" value={request.requesterOffice} />
+              <Info
+                label="Employee Number"
+                value={request.requesterEmployeeNo}
+              />
+              <Info
+                label="Contact Information"
+                value={request.requesterContact}
+              />
+              <Info label="Email" value={request.requesterEmail} />
+            </div>
+            <hr />
+            <p className="dataset-kicker">DATA SET 2</p>
+            <h3>Access requirements</h3>
+            <div className="info-grid">
+              <Info label="System / Application" value={request.systemName} />
+              <Info label="Account Type" value={request.accountType} />
+              <Info
+                label="Login Mode Change"
+                value={request.loginMode || "None"}
+              />
+              {request.changeOfficeRequested && (
+                <Info
+                  label="Office Code Change"
+                  value={`${request.changeOfficeFrom} → ${request.changeOfficeTo}`}
+                />
+              )}
+            </div>
+            <SelectionList
+              title="Request Access Levels"
+              items={request.accessLevels}
+            />
+            {request.systemName ===
+              "Land Transportation Management System (LTMS)" && (
+              <>
+                <hr />
+                <p className="dataset-kicker">DATA SET 3</p>
+                <h3>LTMS Modules</h3>
+                <SelectionList
+                  title="Selected Modules"
+                  items={request.ltmsModules}
+                />
+                {request.ltmsOther && (
+                  <Info label="Other LTMS Module" value={request.ltmsOther} />
+                )}
+              </>
+            )}
+            <hr />
+            <h3>Approval and audit trail</h3>
+            <div className="trail-body compact">
+              {request.events.map((e) => (
+                <div className="trail-item" key={e.id}>
+                  <div>✓</div>
+                  <section>
+                    <strong>{e.action.replaceAll("_", " ")}</strong>
+                    <p>
+                      {e.actorName} · {roleLabels[e.actorRole]}
+                    </p>
+                    {e.notes && <p>“{e.notes}”</p>}
+                    <span>{formatDateTime(e.createdAt)}</span>
+                  </section>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+        <aside className="action-column">
+          <section className="card action-card">
+            <div className="action-title">
+              <span>{request.status === "CLOSED" ? "✓" : "◆"}</span>
+              <div>
+                <h3>
+                  {request.status === "CLOSED"
+                    ? "Transaction closed"
+                    : request.status === "RETURNED_FOR_CORRECTION"
+                      ? "Correction required"
+                      : canAct
+                        ? "Action required"
+                        : "Read-only view"}
+                </h3>
+                <p>
+                  {request.status === "RETURNED_FOR_CORRECTION"
+                    ? "The requestor must correct and resubmit this application."
+                    : request.status === "CLOSED"
+                      ? "Implementation is complete."
+                      : canAct
+                        ? `Assigned to ${roleLabels[user.role]}.`
+                        : request.currentRole
+                          ? `Pending ${roleLabels[request.currentRole]}.`
+                          : "No pending owner."}
+                </p>
+              </div>
+            </div>
+            {error && <div className="form-error small">{error}</div>}
+            {canAct && (
+              <>
+                <label className="notes">
+                  <span>
+                    Remarks {notes.trim() ? "" : "(required for disapproval)"}
+                  </span>
+                  <textarea
+                    value={notes}
+                    maxLength={500}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Record approval notes or explain the reason for rejection…"
+                  />
+                </label>
+                {verify && (
+                  <div className="verify-box">
+                    <div>
+                      <span>▣</span>
+                      <strong>Director step-up verification</strong>
+                    </div>
+                    <p>Re-enter your password to authorize this approval.</p>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoFocus
+                      placeholder="Your LTOCM password"
+                    />
+                  </div>
+                )}
+                <button
+                  className="primary-action"
+                  disabled={busy || (verify && !password)}
+                  onClick={() => act(transition.action)}
+                >
+                  {busy
+                    ? "Processing…"
+                    : verify
+                      ? "Verify and approve"
+                      : actionLabels[transition.action]}
+                  <span>→</span>
+                </button>
+                <button
+                  className="disapprove-button"
+                  disabled={busy}
+                  onClick={() => act("DISAPPROVE")}
+                >
+                  Disapprove and return for correction
+                </button>
+              </>
+            )}
+            {request.status === "RETURNED_FOR_CORRECTION" &&
+              user.role === "DO" && (
+                <button
+                  className="primary-action"
+                  onClick={() => setCorrecting(true)}
+                >
+                  Correct and resubmit <span>→</span>
+                </button>
+              )}
+            {request.status === "CLOSED" && (
+              <div className="closed-receipt">
+                <div>
+                  <span>Implementation ID</span>
+                  <strong>{request.implementationId}</strong>
+                </div>
+                <div>
+                  <span>Closed</span>
+                  <strong>
+                    {request.closedAt && formatDateTime(request.closedAt)}
+                  </strong>
+                </div>
+              </div>
+            )}
+          </section>
+        </aside>
+      </div>
+    </>
+  );
 }
 
-function CorrectionForm({request,onCancel,onDone}:{request:Detail;onCancel:()=>void;onDone:()=>void}){
-  const [error,setError]=useState("");const [busy,setBusy]=useState(false);const [system,setSystem]=useState(request.systemName);
-  async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();setBusy(true);setError("");const f=new FormData(e.currentTarget);const body=Object.fromEntries(f);Object.assign(body,{accessLevels:f.getAll("accessLevels"),ltmsModules:f.getAll("ltmsModules")});const r=await fetch(`/api/requests/${request.id}`,{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const x=await r.json();setBusy(false);if(!r.ok)return setError(x.error);onDone();}
-  return <form className="application-form" onSubmit={submit}><div className="detail-toolbar"><button type="button" className="back-link" onClick={onCancel}>← Cancel correction</button></div><section className="form-intro"><span>RETURNED FOR CORRECTION</span><h2>Correct and resubmit application</h2><p>The full audit trail and previous attachments are retained.</p></section>{error&&<div className="form-error">{error}</div>}<section className="card form-section"><div className="dataset-title"><b>DATA SET 1</b><h3>Requestor information</h3></div><div className="form-grid"><Field name="applicantName" label="Full Name" defaultValue={request.applicantName}/><Field name="requesterPosition" label="Position / Designation" defaultValue={request.requesterPosition}/><Field name="requesterOffice" label="Office" defaultValue={request.requesterOffice}/><Field name="requesterEmployeeNo" label="Employee Number" defaultValue={request.requesterEmployeeNo}/><Field name="requesterContact" label="Contact Information" defaultValue={request.requesterContact}/><Field name="requesterEmail" label="Email" type="email" defaultValue={request.requesterEmail}/><Field name="immediateSuperior" label="Immediate Supervisor" defaultValue={request.immediateSuperior}/></div></section><section className="card form-section"><div className="dataset-title"><b>DATA SET 2</b><h3>Access requirements</h3></div><div className="form-grid"><label><span>System / Application</span><select name="systemName" value={system} onChange={e=>setSystem(e.target.value)}>{SYSTEM_OPTIONS.map(o=><option key={o}>{o}</option>)}</select></label><label><span>Account Type</span><select name="accountType" defaultValue={request.accountType}>{ACCOUNT_TYPES.map(o=><option key={o}>{o}</option>)}</select></label></div><fieldset className="check-section"><legend>Request Access Level</legend><div className="check-grid">{ACCESS_LEVELS.map(o=><label key={o}><input type="checkbox" name="accessLevels" value={o} defaultChecked={request.accessLevels.includes(o)}/><span>{o}</span></label>)}</div></fieldset><label className="full-field"><span>Login Mode Change</span><select name="loginMode" defaultValue={request.loginMode||""}><option value="">None</option>{LOGIN_MODES.map(o=><option key={o}>{o}</option>)}</select></label></section>{system==="Land Transportation Management System (LTMS)"&&<section className="card form-section"><div className="dataset-title"><b>DATA SET 3</b><h3>LTMS Modules</h3></div>{LTMS_MODULE_GROUPS.map(g=><fieldset className="check-section" key={g.name}><legend>{g.name}</legend><div className="check-grid">{g.items.map(o=><label key={o}><input type="checkbox" name="ltmsModules" value={o} defaultChecked={request.ltmsModules.includes(o)}/><span>{o}</span></label>)}</div></fieldset>)}<Field name="ltmsOther" label="Other LTMS Module" defaultValue={request.ltmsOther||""}/></section>}<section className="card form-section"><label className="full-field"><span>Correction remarks</span><textarea name="correctionRemarks" placeholder="Summarize the corrections made…" required/></label></section><div className="form-submit"><p>This restarts the workflow at Head of Office endorsement.</p><button className="primary-action" disabled={busy}>{busy?"Resubmitting…":"Resubmit corrected request"}<span>→</span></button></div></form>;
+function CorrectionForm({
+  request,
+  onCancel,
+  onDone,
+}: {
+  request: Detail;
+  onCancel: () => void;
+  onDone: () => void;
+}) {
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [system, setSystem] = useState(request.systemName);
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const f = new FormData(e.currentTarget);
+    const body = Object.fromEntries(f);
+    Object.assign(body, {
+      accessLevels: f.getAll("accessLevels"),
+      ltmsModules: f.getAll("ltmsModules"),
+    });
+    const r = await fetch(`/api/requests/${request.id}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const x = await r.json();
+    setBusy(false);
+    if (!r.ok) return setError(x.error);
+    onDone();
+  }
+  return (
+    <form className="application-form" onSubmit={submit}>
+      <div className="detail-toolbar">
+        <button type="button" className="back-link" onClick={onCancel}>
+          ← Cancel correction
+        </button>
+      </div>
+      <section className="form-intro">
+        <span>RETURNED FOR CORRECTION</span>
+        <h2>Correct and resubmit application</h2>
+        <p>The full audit trail and previous attachments are retained.</p>
+      </section>
+      {error && <div className="form-error">{error}</div>}
+      <section className="card form-section">
+        <div className="dataset-title">
+          <b>DATA SET 1</b>
+          <h3>Requestor information</h3>
+        </div>
+        <div className="form-grid">
+          <Field
+            name="applicantName"
+            label="Full Name"
+            defaultValue={request.applicantName}
+          />
+          <Field
+            name="requesterPosition"
+            label="Position / Designation"
+            defaultValue={request.requesterPosition}
+          />
+          <Field
+            name="requesterOffice"
+            label="Office"
+            defaultValue={request.requesterOffice}
+          />
+          <Field
+            name="requesterEmployeeNo"
+            label="Employee Number"
+            defaultValue={request.requesterEmployeeNo}
+          />
+          <Field
+            name="requesterContact"
+            label="Contact Information"
+            defaultValue={request.requesterContact}
+          />
+          <Field
+            name="requesterEmail"
+            label="Email"
+            type="email"
+            defaultValue={request.requesterEmail}
+          />
+          <Field
+            name="immediateSuperior"
+            label="Immediate Supervisor"
+            defaultValue={request.immediateSuperior}
+          />
+        </div>
+      </section>
+      <section className="card form-section">
+        <div className="dataset-title">
+          <b>DATA SET 2</b>
+          <h3>Access requirements</h3>
+        </div>
+        <div className="form-grid">
+          <label>
+            <span>System / Application</span>
+            <select
+              name="systemName"
+              value={system}
+              onChange={(e) => setSystem(e.target.value)}
+            >
+              {SYSTEM_OPTIONS.map((o) => (
+                <option key={o}>{o}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Account Type</span>
+            <select name="accountType" defaultValue={request.accountType}>
+              {ACCOUNT_TYPES.map((o) => (
+                <option key={o}>{o}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <fieldset className="check-section">
+          <legend>Request Access Level</legend>
+          <div className="check-grid">
+            {ACCESS_LEVELS.map((o) => (
+              <label key={o}>
+                <input
+                  type="checkbox"
+                  name="accessLevels"
+                  value={o}
+                  defaultChecked={request.accessLevels.includes(o)}
+                />
+                <span>{o}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <label className="full-field">
+          <span>Login Mode Change</span>
+          <select name="loginMode" defaultValue={request.loginMode || ""}>
+            <option value="">None</option>
+            {LOGIN_MODES.map((o) => (
+              <option key={o}>{o}</option>
+            ))}
+          </select>
+        </label>
+      </section>
+      {system === "Land Transportation Management System (LTMS)" && (
+        <section className="card form-section">
+          <div className="dataset-title">
+            <b>DATA SET 3</b>
+            <h3>LTMS Modules</h3>
+          </div>
+          {LTMS_MODULE_GROUPS.map((g) => (
+            <fieldset className="check-section" key={g.name}>
+              <legend>{g.name}</legend>
+              <div className="check-grid">
+                {g.items.map((o) => (
+                  <label key={o}>
+                    <input
+                      type="checkbox"
+                      name="ltmsModules"
+                      value={o}
+                      defaultChecked={request.ltmsModules.includes(o)}
+                    />
+                    <span>{o}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          ))}
+          <Field
+            name="ltmsOther"
+            label="Other LTMS Module"
+            defaultValue={request.ltmsOther || ""}
+          />
+        </section>
+      )}
+      <section className="card form-section">
+        <label className="full-field">
+          <span>Correction remarks</span>
+          <textarea
+            name="correctionRemarks"
+            placeholder="Summarize the corrections made…"
+            required
+          />
+        </label>
+      </section>
+      <div className="form-submit">
+        <p>This restarts the workflow at Head of Office endorsement.</p>
+        <button className="primary-action" disabled={busy}>
+          {busy ? "Resubmitting…" : "Resubmit corrected request"}
+          <span>→</span>
+        </button>
+      </div>
+    </form>
+  );
 }
 
-function Reports({requests,user,onSelect}:{requests:AccessRequest[];user:AuthUser;onSelect:(id:string)=>void}){const implemented=requests.filter(r=>r.status==="CLOSED");const rejected=requests.filter(r=>r.status==="RETURNED_FOR_CORRECTION");const pending=requests.filter(r=>!["CLOSED","RETURNED_FOR_CORRECTION"].includes(r.status));return <><section className="workspace-welcome"><div><p className="eyebrow">GAOR-SCOPED REPORT</p><h2>Credential request status</h2><p>{["MID_CHIEF","TECHNICAL_TEAM","SYSTEM_ADMIN"].includes(user.role)?"All geographical areas":`Region ${user.regionCode}`} · Generated {formatDateTime(new Date().toISOString())}</p></div><button className="print-button" onClick={()=>window.print()}>Print report</button></section><div className="metric-grid"><div className="metric"><span>Implemented</span><strong>{implemented.length}</strong><small>Completed roles</small></div><div className="metric"><span>Returned / Rejected</span><strong>{rejected.length}</strong><small>Awaiting correction</small></div><div className="metric accent"><span>Pending</span><strong>{pending.length}</strong><small>In approval workflow</small></div></div><section className="card request-list report-table"><div className="list-heading"><div><h3>Request report</h3><p>Visibility is enforced by account hierarchy and GAOR.</p></div><span>{requests.length} records</span></div><div className="table-wrap"><table><thead><tr><th>Reference</th><th>Requestor</th><th>Region / Agency</th><th>Requested access</th><th>Status</th><th></th></tr></thead><tbody>{requests.map(r=><tr key={r.id}><td><strong>{r.referenceNo}</strong></td><td>{r.applicantName}<small>{r.requesterEmployeeNo}</small></td><td>{r.regionCode}<small>{r.agencyCode}</small></td><td>{r.systemName}<small>{r.accessLevels.join(", ")}</small></td><td>{statusLabels[r.status]}</td><td><button className="view-link" onClick={()=>onSelect(r.id)}>Details →</button></td></tr>)}</tbody></table></div></section></>}
+function Reports({
+  requests,
+  user,
+  onSelect,
+}: {
+  requests: AccessRequest[];
+  user: AuthUser;
+  onSelect: (id: string) => void;
+}) {
+  const implemented = requests.filter((r) => r.status === "CLOSED");
+  const rejected = requests.filter(
+    (r) => r.status === "RETURNED_FOR_CORRECTION",
+  );
+  const pending = requests.filter(
+    (r) => !["CLOSED", "RETURNED_FOR_CORRECTION"].includes(r.status),
+  );
+  return (
+    <>
+      <section className="workspace-welcome">
+        <div>
+          <p className="eyebrow">GAOR-SCOPED REPORT</p>
+          <h2>Credential request status</h2>
+          <p>
+            {["MID_CHIEF", "TECHNICAL_TEAM", "SYSTEM_ADMIN"].includes(user.role)
+              ? "All geographical areas"
+              : `Region ${user.regionCode}`}{" "}
+            · Generated {formatDateTime(new Date().toISOString())}
+          </p>
+        </div>
+        <button className="print-button" onClick={() => window.print()}>
+          Print report
+        </button>
+      </section>
+      <div className="metric-grid">
+        <div className="metric">
+          <span>Implemented</span>
+          <strong>{implemented.length}</strong>
+          <small>Completed roles</small>
+        </div>
+        <div className="metric">
+          <span>Returned / Rejected</span>
+          <strong>{rejected.length}</strong>
+          <small>Awaiting correction</small>
+        </div>
+        <div className="metric accent">
+          <span>Pending</span>
+          <strong>{pending.length}</strong>
+          <small>In approval workflow</small>
+        </div>
+      </div>
+      <section className="card request-list report-table">
+        <div className="list-heading">
+          <div>
+            <h3>Request report</h3>
+            <p>Visibility is enforced by account hierarchy and GAOR.</p>
+          </div>
+          <span>{requests.length} records</span>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Reference</th>
+                <th>Requestor</th>
+                <th>Region / Agency</th>
+                <th>Requested access</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    <strong>{r.referenceNo}</strong>
+                  </td>
+                  <td>
+                    {r.applicantName}
+                    <small>{r.requesterEmployeeNo}</small>
+                  </td>
+                  <td>
+                    {r.regionCode}
+                    <small>{r.agencyCode}</small>
+                  </td>
+                  <td>
+                    {r.systemName}
+                    <small>{r.accessLevels.join(", ")}</small>
+                  </td>
+                  <td>{statusLabels[r.status]}</td>
+                  <td>
+                    <button
+                      className="view-link"
+                      onClick={() => onSelect(r.id)}
+                    >
+                      Details →
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
+  );
+}
 
-function Notifications({notices,onClose,onOpen}:{notices:Notice[];onClose:()=>void;onOpen:(noticeId:string,requestId:string)=>void}){return <div className="modal-backdrop align-right"><section className="notification-drawer"><header><div><h2>Notifications</h2><p>Workflow updates assigned to you</p></div><button onClick={onClose}>×</button></header><div>{notices.length===0?<div className="empty-state"><strong>You’re all caught up</strong><p>No notifications yet.</p></div>:notices.map(n=><button className={`notice-item ${!n.is_read?"unread":""}`} key={n.id} onClick={()=>onOpen(n.id,n.request_id)}><i/><div><strong>{n.title}</strong><p>{n.message}</p><span>{formatDateTime(n.created_at)}</span></div></button>)}</div></section></div>}
-function AttachmentsPanel({request}:{request:Detail}){return <section className="card attachments-panel"><div className="list-heading"><div><h3>Supporting attachments</h3><p>Files submitted with this application</p></div><span>{request.attachments.length} files</span></div>{request.attachments.length===0?<div className="empty-state compact"><strong>No attachments</strong><p>No supporting files were submitted.</p></div>:<div className="attachment-list">{request.attachments.map((a)=><a key={a.id} href={`/api/requests/${request.id}/attachments/${a.id}`}><span className="file-type">{fileExtension(a.originalName)}</span><div><strong>{a.originalName}</strong><small>{formatFileSize(a.sizeBytes)} · Uploaded {formatDateTime(a.createdAt)}</small></div><b>Download ↓</b></a>)}</div>}</section>}
-function AgencyLogos({compact=false}:{compact?:boolean}){const size=compact?30:56;return <div className={`agency-logos ${compact?"compact":""}`} aria-label="LTO, Department of Transportation, and Bagong Pilipinas"><Image src="/lto-logo.svg" width={size} height={size} alt="Land Transportation Office"/><Image src="/dotr-logo.svg" width={size} height={size} alt="Department of Transportation"/><Image className="bagong-logo" src="/bagong-pilipinas-logo.svg" width={size} height={size} alt="Bagong Pilipinas"/></div>}
-function BellIcon(){return <svg className="bell-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>}
-function Field({name,label,type="text",defaultValue,readOnly=false}:{name:string;label:string;type?:string;defaultValue?:string;readOnly?:boolean}){return <><label><span>{label}</span><input name={name} type={type} defaultValue={defaultValue} readOnly={readOnly||name==="immediateSuperior"} required/></label>{name==="requesterEmail"&&<EmploymentStatusSelect/>}</>}
-function EmploymentStatusSelect({defaultValue=""}:{defaultValue?:string}){return <label><span>Employment Status</span><select name="employmentStatus" defaultValue={defaultValue} required><option value="">Select employment status</option>{EMPLOYMENT_STATUSES.map(status=><option key={status} value={status}>{status}</option>)}</select></label>}
-function Info({label,value}:{label:string;value:string}){return <div className="info"><span>{label}</span><strong>{value}</strong></div>}
-function SelectionList({title,items}:{title:string;items:string[]}){return <div className="selection-summary"><span>{title}</span>{items.length===0?<p>None recorded</p>:<div>{items.map((item)=><b key={item}>✓ {item}</b>)}</div>}</div>}
-function initials(name:string){return name.split(" ").map((n)=>n[0]).slice(0,2).join("").toUpperCase()}
-function formatDate(value:string){return new Intl.DateTimeFormat("en-PH",{dateStyle:"medium"}).format(new Date(value))}
-function formatDateTime(value:string){return new Intl.DateTimeFormat("en-PH",{dateStyle:"medium",timeStyle:"short"}).format(new Date(value))}
-function formatFileSize(bytes:number){return bytes<1024*1024?`${Math.max(1,Math.round(bytes/1024))} KB`:`${(bytes/1024/1024).toFixed(1)} MB`}
-function fileExtension(name:string){return name.includes(".")?name.split(".").pop()!.slice(0,5).toUpperCase():"FILE"}
+function Notifications({
+  notices,
+  onClose,
+  onOpen,
+}: {
+  notices: Notice[];
+  onClose: () => void;
+  onOpen: (noticeId: string, requestId: string) => void;
+}) {
+  return (
+    <div className="modal-backdrop align-right">
+      <section className="notification-drawer">
+        <header>
+          <div>
+            <h2>Notifications</h2>
+            <p>Workflow updates assigned to you</p>
+          </div>
+          <button onClick={onClose}>×</button>
+        </header>
+        <div>
+          {notices.length === 0 ? (
+            <div className="empty-state">
+              <strong>You’re all caught up</strong>
+              <p>No notifications yet.</p>
+            </div>
+          ) : (
+            notices.map((n) => (
+              <button
+                className={`notice-item ${!n.is_read ? "unread" : ""}`}
+                key={n.id}
+                onClick={() => onOpen(n.id, n.request_id)}
+              >
+                <i />
+                <div>
+                  <strong>{n.title}</strong>
+                  <p>{n.message}</p>
+                  <span>{formatDateTime(n.created_at)}</span>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+function AttachmentsPanel({ request }: { request: Detail }) {
+  return (
+    <section className="card attachments-panel">
+      <div className="list-heading">
+        <div>
+          <h3>Supporting attachments</h3>
+          <p>Files submitted with this application</p>
+        </div>
+        <span>{request.attachments.length} files</span>
+      </div>
+      {request.attachments.length === 0 ? (
+        <div className="empty-state compact">
+          <strong>No attachments</strong>
+          <p>No supporting files were submitted.</p>
+        </div>
+      ) : (
+        <div className="attachment-list">
+          {request.attachments.map((a) => (
+            <a
+              key={a.id}
+              href={`/api/requests/${request.id}/attachments/${a.id}`}
+            >
+              <span className="file-type">{fileExtension(a.originalName)}</span>
+              <div>
+                <strong>{a.originalName}</strong>
+                <small>
+                  {a.documentType.replaceAll("_"," ")} · {formatFileSize(a.sizeBytes)} · Uploaded{" "}
+                  {formatDateTime(a.createdAt)}
+                </small>
+              </div>
+              <b>Download ↓</b>
+            </a>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+function AgencyLogos({ compact = false }: { compact?: boolean }) {
+  const size = compact ? 30 : 56;
+  return (
+    <div
+      className={`agency-logos ${compact ? "compact" : ""}`}
+      aria-label="LTO, Department of Transportation, and Bagong Pilipinas"
+    >
+      <Image
+        src="/lto-logo.svg"
+        width={size}
+        height={size}
+        alt="Land Transportation Office"
+      />
+      <Image
+        src="/dotr-logo.svg"
+        width={size}
+        height={size}
+        alt="Department of Transportation"
+      />
+      <Image
+        className="bagong-logo"
+        src="/bagong-pilipinas-logo.svg"
+        width={size}
+        height={size}
+        alt="Bagong Pilipinas"
+      />
+    </div>
+  );
+}
+function BellIcon() {
+  return (
+    <svg className="bell-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
+    </svg>
+  );
+}
+function Field({
+  name,
+  label,
+  type = "text",
+  defaultValue,
+  readOnly = false,
+}: {
+  name: string;
+  label: string;
+  type?: string;
+  defaultValue?: string;
+  readOnly?: boolean;
+}) {
+  return (
+    <>
+      <label>
+        <span>{label}</span>
+        <input
+          name={name}
+          type={type}
+          defaultValue={defaultValue}
+          readOnly={readOnly || name === "immediateSuperior"}
+          required
+        />
+      </label>
+      {name === "requesterEmail" && <EmploymentStatusSelect />}
+    </>
+  );
+}
+function EmploymentStatusSelect({
+  defaultValue = "",
+}: {
+  defaultValue?: string;
+}) {
+  return (
+    <label>
+      <span>Employment Status</span>
+      <select name="employmentStatus" defaultValue={defaultValue} required>
+        <option value="">Select employment status</option>
+        {EMPLOYMENT_STATUSES.map((status) => (
+          <option key={status} value={status}>
+            {status}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="info">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+function SelectionList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="selection-summary">
+      <span>{title}</span>
+      {items.length === 0 ? (
+        <p>None recorded</p>
+      ) : (
+        <div>
+          {items.map((item) => (
+            <b key={item}>✓ {item}</b>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+function initials(name: string) {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-PH", { dateStyle: "medium" }).format(
+    new Date(value),
+  );
+}
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-PH", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+function formatFileSize(bytes: number) {
+  return bytes < 1024 * 1024
+    ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+    : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+function fileExtension(name: string) {
+  return name.includes(".")
+    ? name.split(".").pop()!.slice(0, 5).toUpperCase()
+    : "FILE";
+}
+function PrintRequestSummary({ request }: { request: Detail }) {
+  const eventDate = (role: Role, action?: string) => {
+    const event = request.events.find(
+      (e) => e.actorRole === role && (!action || e.action === action),
+    );
+    return event ? formatDateTime(event.createdAt) : "Pending";
+  };
+  return (
+    <section className="card print-request-summary">
+      <h3>Complete Request Information</h3>
+      <div className="info-grid">
+        <Info
+          label="Date of Request"
+          value={formatDateTime(request.createdAt)}
+        />
+        <Info label="Type of System" value={request.systemName} />
+        <Info label="Roles Requested" value={request.accessLevels.join(", ")} />
+        <Info label="Name of Requestor" value={request.applicantName} />
+        <Info label="Employee Number" value={request.requesterEmployeeNo} />
+        <Info
+          label="Position and Designation"
+          value={request.requesterPosition}
+        />
+        <Info label="Agency Code" value={request.agencyCode} />
+        <Info label="Office" value={request.requesterOffice} />
+        <Info label="User Request Number" value={request.referenceNo} />
+        <Info
+          label="Date of DO approval"
+          value={eventDate("HEAD_OF_OFFICE", "ENDORSE")}
+        />
+        <Info
+          label="Date of RO Operations approval"
+          value={eventDate("REGIONAL_OPERATIONS_CHIEF")}
+        />
+        <Info
+          label="Date of RD approval"
+          value={eventDate("REGIONAL_DIRECTOR")}
+        />
+        <Info
+          label="Date of Computer Section approval"
+          value={eventDate("MID_VERIFIER")}
+        />
+        <Info
+          label="Date of MID Chief approval"
+          value={eventDate("MID_CHIEF")}
+        />
+        <Info
+          label="Date of System Implementation"
+          value={eventDate("TECHNICAL_TEAM", "IMPLEMENT")}
+        />
+      </div>
+    </section>
+  );
+}
