@@ -9,3 +9,7 @@ dedicated Node.js runtime under `/opt/lto-uars/node`.
 - Service: `lto-uars.service`
 - Authentication: local LTOCM accounts (`AUTH_PROVIDER=LOCAL`)
 - Keycloak readiness: see `docs/keycloak-integration.md` and `deploy/uars.env.example`
+
+After every versioned deployment, run `deploy/scripts/cleanup-storage.sh` as
+root. It keeps the active release, one rollback release, and the five newest
+database backups. Shared uploads are never touched.
