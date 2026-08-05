@@ -19,8 +19,9 @@ export async function GET() {
     query<OptionRow>(
       `SELECT full_name AS value, full_name || ' · ' || office AS label
          FROM uars.users
-        WHERE is_active=true AND role='HEAD_OF_OFFICE'
+        WHERE is_active=true AND role='HEAD_OF_OFFICE' AND agency_code=$1
         ORDER BY full_name`,
+      [user.agencyCode],
     ),
   ]);
 

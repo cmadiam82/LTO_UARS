@@ -11,7 +11,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (id === auth.user!.id && (body.isActive === false || (body.role && body.role !== "SYSTEM_ADMIN"))) return NextResponse.json({ error: "You cannot disable or remove your own administrator access." }, { status: 400 });
   if (body.role && !ROLES.includes(body.role as Role)) return NextResponse.json({ error: "Invalid role." }, { status: 400 });
   return transaction(async (client) => {
-    const existing = await client.query(`SELECT username,role,is_active FROM uars.users WHERE id=$1`, [id]);
+    const existing = await client.query(`SELECT username,role,is_active,region_code,agency_code FROM uars.users WHERE id=$1`, [id]);
     if (!existing.rows[0]) return NextResponse.json({ error: "User not found." }, { status: 404 });
     if (body.action === "RESET_PASSWORD") {
       const temporaryPassword = randomBytes(12).toString("base64url") + "!9a";
@@ -20,8 +20,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       await client.query(`INSERT INTO uars.admin_audit_events (actor_id,actor_name,action,entity_type,entity_id,details) VALUES ($1,$2,'PASSWORD_RESET','USER',$3,$4)`, [auth.user!.id,auth.user!.fullName,id,JSON.stringify({username:existing.rows[0].username})]);
       return NextResponse.json({ temporaryPassword });
     }
-    const role = body.role || existing.rows[0].role; const isActive = typeof body.isActive === "boolean" ? body.isActive : existing.rows[0].is_active;
-    const updated = await client.query(`UPDATE uars.users SET role=$1,is_active=$2,updated_at=now() WHERE id=$3 RETURNING id,username,full_name,employee_id,email,office,role,identity_provider,is_active,must_change_password,created_at,updated_at`, [role,isActive,id]);
+    const role = body.role || existing.rows[0].role; const isActive = typeof body.isActive === "boolean" ? body.isActive : existing.rows[0].is_active;const regionCode=String(body.regionCode||existing.rows[0].region_code).trim().toUpperCase();const agencyCode=String(body.agencyCode||existing.rows[0].agency_code).trim().toUpperCase();
+    const updated = await client.query(`UPDATE uars.users SET role=$1,is_active=$2,region_code=$3,agency_code=$4,updated_at=now() WHERE id=$5 RETURNING id,username,full_name,employee_id,email,office,region_code,agency_code,position,contact_info,role,identity_provider,is_active,must_change_password,created_at,updated_at`, [role,isActive,regionCode,agencyCode,id]);
     if (!isActive) await client.query(`DELETE FROM uars.sessions WHERE user_id=$1`, [id]);
     await client.query(`INSERT INTO uars.admin_audit_events (actor_id,actor_name,action,entity_type,entity_id,details) VALUES ($1,$2,'USER_UPDATED','USER',$3,$4)`, [auth.user!.id,auth.user!.fullName,id,JSON.stringify({before:existing.rows[0],after:{role,is_active:isActive}})]);
     return NextResponse.json({ user: updated.rows[0] });

@@ -15,6 +15,10 @@ type UserRow = {
   employee_id: string;
   email: string;
   office: string;
+  region_code: string;
+  agency_code: string;
+  position: string | null;
+  contact_info: string | null;
   role: Role;
   identity_provider: IdentityProvider;
   must_change_password: boolean;
@@ -48,6 +52,10 @@ function toUser(row: UserRow): AuthUser {
     employeeId: row.employee_id,
     email: row.email,
     office: row.office,
+    regionCode: row.region_code,
+    agencyCode: row.agency_code,
+    position: row.position || "",
+    contactInfo: row.contact_info || "",
     role: row.role,
     identityProvider: row.identity_provider,
     mustChangePassword: row.must_change_password,
@@ -57,7 +65,7 @@ function toUser(row: UserRow): AuthUser {
 
 export async function authenticate(username: string, password: string): Promise<AuthUser | null> {
   const result = await query<UserRow>(
-    `SELECT id, username, password_hash, full_name, employee_id, email, office, role, identity_provider,
+    `SELECT id, username, password_hash, full_name, employee_id, email, office, region_code, agency_code, position, contact_info, role, identity_provider,
             must_change_password, is_active, false AS policy_accepted
        FROM uars.users WHERE lower(username) = lower($1) AND identity_provider='LOCAL'`,
     [username],
@@ -82,7 +90,7 @@ export async function currentUser(): Promise<AuthUser | null> {
   if (!token) return null;
   const result = await query<UserRow>(
     `SELECT u.id, u.username, u.password_hash, u.full_name, u.employee_id, u.email,
-            u.office, u.role, u.identity_provider, u.must_change_password, u.is_active,
+            u.office, u.region_code, u.agency_code, u.position, u.contact_info, u.role, u.identity_provider, u.must_change_password, u.is_active,
             (s.policy_accepted_at IS NOT NULL) AS policy_accepted
        FROM uars.sessions s JOIN uars.users u ON u.id = s.user_id
       WHERE s.token_hash = $1 AND s.expires_at > now()

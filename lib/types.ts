@@ -18,6 +18,10 @@ export type AuthUser = {
   employeeId: string;
   email: string;
   office: string;
+  regionCode: string;
+  agencyCode: string;
+  position: string;
+  contactInfo: string;
   role: Role;
   identityProvider: IdentityProvider;
   mustChangePassword: boolean;
@@ -30,6 +34,13 @@ export type AccessRequest = {
   applicantName: string;
   agencyCode: string;
   immediateSuperior: string;
+  regionCode: string;
+  requesterPosition: string;
+  requesterOffice: string;
+  requesterEmployeeNo: string;
+  requesterContact: string;
+  requesterEmail: string;
+  resubmissionCount: number;
   employeeId: string;
   email: string;
   contactNo: string;
