@@ -66,14 +66,14 @@ export async function POST(request: Request) {
       ltmsModules=form.getAll("ltmsModules").filter((value):value is string=>typeof value==="string");
     }
   } else body = await request.json().catch(() => null) as Record<string,string> | null;
-  const required = ["applicantName","requesterPosition","requesterOffice","requesterEmployeeNo","requesterContact","requesterEmail","immediateSuperior","systemName","accountType"];
+  const required = ["applicantName","requesterPosition","requesterOffice","requesterEmployeeNo","requesterContact","requesterEmail","systemName","accountType"];
   if (!body || required.some((key) => !body[key]?.trim())) return NextResponse.json({ error: "Complete every required field." }, { status: 400 });
   const [agencyCode, supervisor] = await Promise.all([
     query(`SELECT 1 FROM uars.users WHERE is_active=true AND agency_code=$1 LIMIT 1`, [user.agencyCode]),
-    query(`SELECT 1 FROM uars.users WHERE is_active=true AND role='HEAD_OF_OFFICE' AND agency_code=$1 AND full_name=$2 LIMIT 1`, [user.agencyCode,body.immediateSuperior.trim()]),
+    query<{chief_name:string}>(`SELECT c.chief_name FROM uars.users u JOIN uars.office_chiefs c ON c.office_id=u.office_id JOIN uars.offices o ON o.id=c.office_id WHERE u.id=$1 AND o.is_active=true`, [user.id]),
   ]);
   if (agencyCode.rowCount === 0) return NextResponse.json({ error: "Select a valid agency code." }, { status: 400 });
-  if (supervisor.rowCount === 0) return NextResponse.json({ error: "Select a valid immediate supervisor." }, { status: 400 });
+  if (supervisor.rowCount === 0) return NextResponse.json({ error: "No Chief of Office is enrolled for your office. Contact the System Administrator." }, { status: 400 });
   if(!SYSTEM_OPTIONS.includes(body.systemName as typeof SYSTEM_OPTIONS[number]))return NextResponse.json({error:"Select a valid system or application."},{status:400});
   if(!ACCOUNT_TYPES.includes(body.accountType as typeof ACCOUNT_TYPES[number]))return NextResponse.json({error:"Select a valid account type."},{status:400});
   if(accessLevels.length===0||accessLevels.some((value)=>!ACCESS_LEVELS.includes(value as typeof ACCESS_LEVELS[number])))return NextResponse.json({error:"Select at least one valid request access level."},{status:400});
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
        RETURNING id, reference_no, applicant_name, employee_id, email, contact_no, office, position, system_name,
         access_level, account_type, requested_start_date::text, justification, status, assigned_role, implementation_id,agency_code,immediate_superior,access_levels,change_office_requested,change_office_from,change_office_to,login_mode,ltms_modules,ltms_other,region_code,requester_position,requester_office,requester_employee_no,requester_contact,requester_email,resubmission_count,
         created_at, updated_at, closed_at`,
-      [ref,user.id,body.applicantName.trim(),body.requesterEmployeeNo.trim(),body.requesterEmail.trim(),body.requesterContact.trim(),body.requesterOffice.trim(),body.requesterPosition.trim(),body.systemName,accessLevels.join(", "),body.accountType,"LTO credentials management request",user.agencyCode,body.immediateSuperior.trim(),JSON.stringify(accessLevels),changeOffice,changeOffice?body.changeOfficeFrom.trim():null,changeOffice?body.changeOfficeTo.trim():null,body.loginMode||null,JSON.stringify(isLtms?ltmsModules:[]),body.ltmsOther?.trim()||null,user.regionCode,body.requesterPosition.trim(),body.requesterOffice.trim(),body.requesterEmployeeNo.trim(),body.requesterContact.trim(),body.requesterEmail.trim()],
+      [ref,user.id,body.applicantName.trim(),body.requesterEmployeeNo.trim(),body.requesterEmail.trim(),body.requesterContact.trim(),body.requesterOffice.trim(),body.requesterPosition.trim(),body.systemName,accessLevels.join(", "),body.accountType,"LTO credentials management request",user.agencyCode,supervisor.rows[0].chief_name,JSON.stringify(accessLevels),changeOffice,changeOffice?body.changeOfficeFrom.trim():null,changeOffice?body.changeOfficeTo.trim():null,body.loginMode||null,JSON.stringify(isLtms?ltmsModules:[]),body.ltmsOther?.trim()||null,user.regionCode,body.requesterPosition.trim(),body.requesterOffice.trim(),body.requesterEmployeeNo.trim(),body.requesterContact.trim(),body.requesterEmail.trim()],
     );
     const row = result.rows[0];
     for (const file of attachments) {
