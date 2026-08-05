@@ -8,6 +8,8 @@ import { roleLabels, transitions } from "../lib/workflow";
 import { ACCESS_LEVELS, ACCOUNT_TYPES, LOGIN_MODES, LTMS_MODULE_GROUPS, SYSTEM_OPTIONS } from "../lib/request-options";
 import { IDLE_TIMEOUT_MINUTES, IDLE_TIMEOUT_MS } from "../lib/security";
 
+const APP_VERSION="1.4.1";
+
 type Notice = { id: string; request_id: string; title: string; message: string; is_read: boolean; created_at: string };
 type Attachment = { id:string;originalName:string;contentType:string;sizeBytes:number;createdAt:string };
 type Detail = AccessRequest & { events: WorkflowEvent[]; attachments:Attachment[] };
@@ -76,6 +78,7 @@ export default function Home() {
       setLoading(false);
     });
   }, []);
+  useEffect(()=>{let checking=false;const check=async()=>{if(checking)return;checking=true;try{const r=await fetch(`/api/version?t=${Date.now()}`,{cache:"no-store"});const x=await r.json();if(x.version!==APP_VERSION)window.location.replace(`/?version=${encodeURIComponent(x.version)}`);}catch{}finally{checking=false;}};void check();const timer=window.setInterval(check,60_000);return()=>window.clearInterval(timer);},[]);
   // Data is refreshed whenever the authenticated identity changes.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (user && (user.role!=="DO"||user.policyAccepted) && !user.mustChangePassword) { loadRequests(); loadNotices(); } }, [user, loadRequests, loadNotices]);
@@ -91,7 +94,7 @@ export default function Home() {
   },[user]);
 
   function flash(message: string) { setToast(message); window.setTimeout(() => setToast(""), 4000); }
-  async function logout() { await fetch("/api/auth/logout", { method: "POST" }); setIdleLogout(false); setUser(null); setSelected(null); }
+  async function logout() { await fetch("/api/auth/logout", { method: "POST" }); window.location.replace(`/?version=${APP_VERSION}`); }
 
   if (loading) return <div className="screen-loader"><AgencyLogos/><p>Opening secure workspace…</p></div>;
   if (!user) return <Login inactivityNotice={idleLogout} onDismissNotice={()=>setIdleLogout(false)} onLogin={(nextUser)=>{setIdleLogout(false);setUser(nextUser);setView(nextUser.role==="SYSTEM_ADMIN"?"admin-users":"workspace");}} />;
@@ -103,7 +106,7 @@ export default function Home() {
     <main className="app-shell">
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
       <aside className="sidebar">
-        <div className="brand"><AgencyLogos compact/><div><strong>LTOCM</strong><span>LTO Credentials Management · v1.4.0</span></div></div>
+        <div className="brand"><AgencyLogos compact/><div><strong>LTOCM</strong><span>LTO Credentials Management · v{APP_VERSION}</span></div></div>
         <nav aria-label="Main navigation">
           <button className={`nav-item ${view === "workspace" ? "active" : ""}`} onClick={() => { setView("workspace"); setSelected(null); }}><span>▦</span> Workspace</button>
           {user.role === "DO" && <button className={`nav-item ${view === "new" ? "active" : ""}`} onClick={() => setView("new")}><span>＋</span> New application</button>}

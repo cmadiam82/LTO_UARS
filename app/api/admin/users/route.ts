@@ -15,7 +15,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const auth = await requireSystemAdmin(); if (auth.error) return auth.error;
-  const body = await request.json(); const required = ["username","fullName","employeeId","email","officeId","position","contactInfo","role"];
+  const body = await request.json();
+  if (!("officeId" in body)) return NextResponse.json({ error: "This page is from an older LTOCM version. Refresh the browser, then create the account using the Managed Office field." }, { status:409 });
+  const required = ["username","fullName","employeeId","email","officeId","position","contactInfo","role"];
   if (required.some((key) => !String(body[key] || "").trim())) return NextResponse.json({ error: "All user fields are required." }, { status: 400 });
   if (!ROLES.includes(body.role as Role)) return NextResponse.json({ error: "Invalid role." }, { status: 400 });
   const temporaryPassword = randomBytes(12).toString("base64url") + "!9a";
